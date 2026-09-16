@@ -25,13 +25,14 @@ export const ACTION_BAND = BACON.h + JUMP_APEX;               // 324u
 //
 // 가로에서는 화면의 22% 지점(최대 150u)이면 충분하다. 그런데 세로에서는
 // 그 규칙을 그대로 쓰면 액션이 화면 맨 아래에 깔려버린다. 그래서 화면이
-// 세로로 길어질수록 지면을 점프 최고점 높이(324u)까지 끌어올린다.
+// 세로로 길어질수록 지면을 tallMax까지 끌어올려 잔디밭이 화면을 받치게 한다.
 // tallFrom~tallTo 사이에서 부드럽게 올라가므로 창을 줄일 때 툭 튀지 않는다.
+// 지면 위로는 ACTION_BAND 만큼이 반드시 남아야 하므로 viewport에서 한 번 더 막는다.
 export const GROUND_FROM_BOTTOM = {
   ratio: 0.22,
   min: 90,
   max: 150,              // 가로에서의 상한
-  tallMax: ACTION_BAND,  // 세로에서 도달할 높이
+  tallMax: 450,          // 세로에서 도달할 높이
   tallFrom: 0.75,        // viewH / viewW 가 이 값을 넘으면 올라가기 시작
   tallTo: 1.0,           // 이 값에서 완전히 올라간다
 };

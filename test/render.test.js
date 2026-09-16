@@ -132,16 +132,26 @@ test('지면 높이가 정해진 범위 안에 있다', () => {
 });
 
 // 세로 화면에서 지면이 바닥에 깔리면 액션이 화면 맨 아래에 몰린다.
-// 지면을 점프 최고점 높이(324u)까지 끌어올려 잔디밭이 화면을 받치게 한다.
-test('세로 화면에서는 지면이 점프 최고점 높이까지 올라온다', () => {
+// 지면을 tallMax까지 끌어올려 잔디밭이 화면을 받치게 한다.
+test('세로 화면에서는 지면이 tallMax까지 올라온다', () => {
   for (const s of SCREENS.filter((x) => x.h > x.w)) {
     installDom(s.w, s.h);
     attach(makeCanvas(s.w, s.h));
     const fromBottom = (viewport.cssH - viewport.groundScreenY) / viewport.scale;
     assert.ok(
-      Math.abs(fromBottom - ACTION_BAND) < 0.001,
-      `${s.name}: 지면이 ${fromBottom.toFixed(0)}u (${ACTION_BAND.toFixed(0)}u여야 함)`,
+      Math.abs(fromBottom - GROUND_FROM_BOTTOM.tallMax) < 0.001,
+      `${s.name}: 지면이 ${fromBottom.toFixed(0)}u (${GROUND_FROM_BOTTOM.tallMax}u여야 함)`,
     );
+  }
+});
+
+// 지면을 아무리 올려도 점프한 베이컨의 머리가 잘리면 안 된다
+test('지면을 올려도 액션 띠는 항상 화면 안에 남는다', () => {
+  for (const s of SCREENS) {
+    installDom(s.w, s.h);
+    attach(makeCanvas(s.w, s.h));
+    const above = viewport.groundScreenY / viewport.scale;
+    assert.ok(above >= ACTION_BAND, `${s.name}: 지면 위 ${above.toFixed(0)}u (${ACTION_BAND.toFixed(0)}u 필요)`);
   }
 });
 

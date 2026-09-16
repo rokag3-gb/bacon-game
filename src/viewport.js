@@ -6,7 +6,7 @@
 // 세로/가로 대응의 전부가 여기 있다. 게임 로직은 전부 유닛 기준이라
 // 화면이 회전해도 scale만 다시 재면 되고, 월드 상태는 건드릴 필요가 없다.
 
-import { SIGHT_W, MIN_VIEW_H, GROUND_FROM_BOTTOM } from './config.js';
+import { SIGHT_W, MIN_VIEW_H, GROUND_FROM_BOTTOM, ACTION_BAND } from './config.js';
 
 export const viewport = {
   canvas: null,
@@ -60,7 +60,10 @@ function groundFromBottom() {
 
   const tallness = viewport.viewH / viewport.viewW;
   const t = Math.max(0, Math.min(1, (tallness - g.tallFrom) / (g.tallTo - g.tallFrom)));
-  return wide + (g.tallMax - wide) * t;
+  const raised = wide + (g.tallMax - wide) * t;
+
+  // 아무리 올려도 지면 위로 점프한 베이컨의 머리가 들어갈 자리는 남겨야 한다
+  return Math.min(raised, Math.max(wide, viewport.viewH - ACTION_BAND));
 }
 
 // 캔버스를 CSS 픽셀 좌표로 쓰도록 변환을 걸어둔다 (레티나 대응)
