@@ -23,6 +23,7 @@ function makeCtx() {
     moveTo: () => {},
     lineTo: () => {},
     arc: () => {},
+    ellipse: () => {},
     rect: () => {},
     fill: () => {},
     stroke: () => {},
@@ -72,7 +73,7 @@ function installDom(w, h, dpr = 2) {
 
 const { attach, viewport, beginFrame, resize } = await import('../src/viewport.js');
 const { drawBackground } = await import('../src/scenery.js');
-const { SIGHT_W, MIN_VIEW_H, GROUND_FROM_BOTTOM } = await import('../src/config.js');
+const { SIGHT_W, MIN_VIEW_H, GROUND_FROM_BOTTOM, ACTION_BAND } = await import('../src/config.js');
 
 const SCREENS = [
   { name: '데스크톱 가로', w: 1600, h: 900 },
@@ -119,14 +120,37 @@ test('점프 최고점의 베이컨 머리가 화면 안에 들어온다', () =>
   }
 });
 
-test('지면선은 화면 아래쪽에 붙어 있다', () => {
+test('지면 높이가 정해진 범위 안에 있다', () => {
   for (const s of SCREENS) {
     installDom(s.w, s.h);
     attach(makeCanvas(s.w, s.h));
     const fromBottom = (viewport.cssH - viewport.groundScreenY) / viewport.scale;
     assert.ok(fromBottom >= GROUND_FROM_BOTTOM.min - 0.001, `${s.name}: ${fromBottom.toFixed(0)}u`);
-    assert.ok(fromBottom <= GROUND_FROM_BOTTOM.max + 0.001, `${s.name}: ${fromBottom.toFixed(0)}u`);
+    assert.ok(fromBottom <= GROUND_FROM_BOTTOM.tallMax + 0.001, `${s.name}: ${fromBottom.toFixed(0)}u`);
     assert.ok(viewport.groundScreenY < viewport.cssH, `${s.name}: 지면이 화면 밖`);
+  }
+});
+
+// 세로 화면에서 지면이 바닥에 깔리면 액션이 화면 맨 아래에 몰린다.
+// 지면을 점프 최고점 높이(324u)까지 끌어올려 잔디밭이 화면을 받치게 한다.
+test('세로 화면에서는 지면이 점프 최고점 높이까지 올라온다', () => {
+  for (const s of SCREENS.filter((x) => x.h > x.w)) {
+    installDom(s.w, s.h);
+    attach(makeCanvas(s.w, s.h));
+    const fromBottom = (viewport.cssH - viewport.groundScreenY) / viewport.scale;
+    assert.ok(
+      Math.abs(fromBottom - ACTION_BAND) < 0.001,
+      `${s.name}: 지면이 ${fromBottom.toFixed(0)}u (${ACTION_BAND.toFixed(0)}u여야 함)`,
+    );
+  }
+});
+
+test('가로 화면의 지면 높이는 그대로다', () => {
+  for (const s of SCREENS.filter((x) => x.w >= x.h)) {
+    installDom(s.w, s.h);
+    attach(makeCanvas(s.w, s.h));
+    const fromBottom = (viewport.cssH - viewport.groundScreenY) / viewport.scale;
+    assert.ok(fromBottom < 150, `${s.name}: 가로인데 지면이 ${fromBottom.toFixed(0)}u로 높다`);
   }
 });
 

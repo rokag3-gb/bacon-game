@@ -50,11 +50,17 @@ export function resize() {
   viewport.viewW = cssW / scale;
   viewport.viewH = cssH / scale;
 
-  const fromBottom = Math.max(
-    GROUND_FROM_BOTTOM.min,
-    Math.min(GROUND_FROM_BOTTOM.max, viewport.viewH * GROUND_FROM_BOTTOM.ratio),
-  );
-  viewport.groundScreenY = cssH - fromBottom * scale;
+  viewport.groundScreenY = cssH - groundFromBottom() * scale;
+}
+
+// 지면을 화면 아래에서 몇 유닛 띄울지. 세로로 길수록 높이 올린다.
+function groundFromBottom() {
+  const g = GROUND_FROM_BOTTOM;
+  const wide = Math.max(g.min, Math.min(g.max, viewport.viewH * g.ratio));
+
+  const tallness = viewport.viewH / viewport.viewW;
+  const t = Math.max(0, Math.min(1, (tallness - g.tallFrom) / (g.tallTo - g.tallFrom)));
+  return wide + (g.tallMax - wide) * t;
 }
 
 // 캔버스를 CSS 픽셀 좌표로 쓰도록 변환을 걸어둔다 (레티나 대응)

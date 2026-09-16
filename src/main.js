@@ -44,6 +44,7 @@ function drawReadout(ctx) {
     `${viewport.cssW}×${viewport.cssH}px  ·  dpr ${viewport.dpr}`,
     `scale ${viewport.scale.toFixed(3)} px/u`,
     `보이는 가로 ${Math.round(viewport.viewW)}u  세로 ${Math.round(viewport.viewH)}u`,
+    `지면 높이 ${Math.round((viewport.cssH - viewport.groundScreenY) / viewport.scale)}u`,
     `베이컨 화면 크기 ${Math.round(BACON.h * viewport.scale)}px`,
     input.held ? '누르는 중' : '탭하거나 스페이스를 눌러보세요',
   ];
