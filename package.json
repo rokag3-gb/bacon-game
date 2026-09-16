@@ -1,0 +1,11 @@
+{
+  "name": "bacon-game",
+  "version": "1.0.0",
+  "description": "베이컨 먹방 - 아이와 함께 만드는 횡스크롤 점프 게임",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test \"test/*.test.js\""
+  }
+}
