@@ -1,108 +1,319 @@
 // 부팅 + 게임 루프.
 //
-// 지금은 1단계(뼈대) 확인용 화면이 붙어 있다. 배경이 흘러가고, 실제 크기의
-// 베이컨·바굼·장애물 박스를 그려서 세로/가로에서 크기가 어떤지 눈으로 볼 수 있다.
-// 4단계에서 씬 디스패치로 바뀐다.
+// 지금은 테스트 모드다. 화면 배치·점프 높이·스크롤 속도를 그 자리에서 바꿔가며
+// 감을 볼 수 있게 만들었다. 6단계에서 씬 디스패치로 바뀐다.
 
 import { attach as attachViewport, viewport, beginFrame, sx, sy, su } from './viewport.js';
-import { attach as attachInput, input, consumePress } from './input.js';
+import { attach as attachInput, input, consumePress, setUiZones, onUiTap } from './input.js';
 import { drawBackground } from './scenery.js';
-import { BACON, BAGOOM, OBSTACLE_KINDS, STAGES } from './config.js';
+import { drawBacon, drawBagoom, drawObstacle, drawPacman } from './sprites.js';
+import { createBacon, updateBacon, baconBox } from './bacon.js';
+import { classifyBagoomHit, jumpApex } from './physics.js';
+import { BACON, BAGOOM, GRAVITY, JUMP_V0, STAGE_COUNT } from './config.js';
 import { buildStage } from './stage.js';
+import { newSeed } from './rng.js';
 
 const canvas = document.getElementById('game');
 attachViewport(canvas);
 attachInput(canvas);
 
-// ── 임시: 1단계 확인용 ────────────────────────────────
-const demo = {
+const PACMAN_SIZE = 160;
+
+const sim = {
+  stageNo: 1,
+  seed: 20260926,
+  stage: null,
   cameraX: 0,
-  running: true,
-  stage: buildStage(1, 20260926),
+  bacon: null,
+  defeated: new Set(),
+  hurtTimer: 0,
+  speedMul: 1,
+  jumpMul: 1,
+  paused: false,
 };
 
-function drawBox(ctx, worldX, worldY, w, h, fill, label) {
-  const x = sx(worldX, demo.cameraX);
-  const y = sy(worldY);
-  ctx.fillStyle = fill;
-  ctx.fillRect(x, y, su(w), su(h));
-  ctx.strokeStyle = 'rgba(0,0,0,0.55)';
-  ctx.lineWidth = Math.max(1, su(2));
-  ctx.strokeRect(x, y, su(w), su(h));
+function loadStage(stageNo, seed) {
+  sim.stageNo = stageNo;
+  sim.seed = seed;
+  sim.stage = buildStage(stageNo, seed);
+  sim.cameraX = 0;
+  sim.defeated.clear();
+  sim.hurtTimer = 0;
+  sim.bacon = createBacon(viewport.viewW * BACON.screenXRatio);
+}
+loadStage(1, sim.seed);
 
-  if (label) {
-    ctx.fillStyle = '#12303f';
-    ctx.font = `${Math.max(9, su(15))}px system-ui, sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.fillText(label, x + su(w) / 2, y - su(8));
+const speed = () => sim.stage.speed * sim.speedMul;
+const jumpV0 = () => JUMP_V0 * sim.jumpMul;
+const apex = () => jumpApex(jumpV0(), GRAVITY);
+
+// 다음 장애물 바로 앞으로 건너뛴다. 스테이지 1은 장애물 간격이 7.8초라
+// 이게 없으면 테스트가 너무 느리다.
+function skipToNextObstacle() {
+  const ahead = sim.stage.obstacles.find((o) => o.x > sim.bacon.x + viewport.viewW * 0.5);
+  if (!ahead) {
+    sim.cameraX = 0;
+  } else {
+    sim.cameraX = ahead.x - viewport.viewW * 0.8;
+  }
+  sim.bacon.x = sim.cameraX + viewport.viewW * BACON.screenXRatio;
+  sim.bacon.y = -BACON.h;
+  sim.bacon.vy = 0;
+}
+
+// ─── 버튼 ───────────────────────────────────────────────
+let buttons = [];
+
+function layoutButtons() {
+  const m = 10;
+  const h = Math.max(34, Math.min(44, viewport.cssH * 0.055));
+  const fs = Math.max(11, Math.min(14, viewport.cssW / 32));
+  const top = readoutBottom + m;
+  buttons = [];
+
+  const row = (y, items) => {
+    let x = m;
+    for (const [label, w, action] of items) {
+      buttons.push({ label, x, y, w: w * fs, h, action, fs });
+      x += w * fs + 6;
+    }
+  };
+
+  row(top, [
+    ['◀', 2.4, () => loadStage(Math.max(1, sim.stageNo - 1), sim.seed)],
+    [`스테이지 ${sim.stageNo}`, 5.6, null],
+    ['▶', 2.4, () => loadStage(Math.min(STAGE_COUNT, sim.stageNo + 1), sim.seed)],
+    ['다시뽑기', 5, () => loadStage(sim.stageNo, newSeed())],
+  ]);
+  row(top + h + 6, [
+    ['점프 ◀', 4, () => (sim.jumpMul = Math.max(0.5, sim.jumpMul - 0.05))],
+    [`${Math.round(apex())}u`, 4, null],
+    ['▶', 2.4, () => (sim.jumpMul = Math.min(2, sim.jumpMul + 0.05))],
+  ]);
+  row(top + (h + 6) * 2, [
+    ['속도 ◀', 4, () => (sim.speedMul = Math.max(0.4, sim.speedMul - 0.05))],
+    [`${Math.round(speed())}`, 4, null],
+    ['▶', 2.4, () => (sim.speedMul = Math.min(2, sim.speedMul + 0.05))],
+  ]);
+  row(top + (h + 6) * 3, [
+    ['▶▶ 다음 장애물', 9, skipToNextObstacle],
+    [sim.paused ? '재생' : '멈춤', 3.4, () => (sim.paused = !sim.paused)],
+  ]);
+
+  // 표시 전용 칸도 등록해야 그 위를 눌렀을 때 점프하지 않는다
+  setUiZones(buttons);
+}
+
+onUiTap((x, y) => {
+  const hit = buttons.find(
+    (b) => b.action && x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h,
+  );
+  hit?.action();
+});
+
+addEventListener('keydown', (e) => {
+  const k = e.key;
+  if (k >= '1' && k <= String(STAGE_COUNT)) loadStage(Number(k), sim.seed);
+  else if (k === 'r' || k === 'R') loadStage(sim.stageNo, newSeed());
+  else if (k === '[') sim.jumpMul = Math.max(0.5, sim.jumpMul - 0.05);
+  else if (k === ']') sim.jumpMul = Math.min(2, sim.jumpMul + 0.05);
+  else if (k === '-') sim.speedMul = Math.max(0.4, sim.speedMul - 0.05);
+  else if (k === '=' || k === '+') sim.speedMul = Math.min(2, sim.speedMul + 0.05);
+  else if (k === 'f' || k === 'F') skipToNextObstacle();
+  else if (k === 'p' || k === 'P') sim.paused = !sim.paused;
+});
+
+// ─── 진행 ───────────────────────────────────────────────
+function nearbyObstacles() {
+  const lo = sim.bacon.x - 400;
+  const hi = sim.bacon.x + viewport.viewW + 400;
+  return sim.stage.obstacles.filter((o) => o.x + o.w > lo && o.x < hi);
+}
+
+function step(dt) {
+  const b = sim.bacon;
+  const pressed = consumePress();
+
+  sim.cameraX += speed() * dt;
+  if (sim.cameraX > sim.stage.length) sim.cameraX = 0;
+
+  updateBacon(b, dt, {
+    desiredX: sim.cameraX + viewport.viewW * BACON.screenXRatio,
+    obstacles: nearbyObstacles(),
+    pressed,
+    held: input.held,
+    jumpV0: jumpV0(),
+  });
+
+  // 바굼 — 밟으면 잡히고, 옆으로 닿으면 잠깐 반투명해진다 (테스트 모드라 안 죽는다)
+  sim.hurtTimer = Math.max(0, sim.hurtTimer - dt);
+  const bb = baconBox(b);
+  for (const [i, g] of sim.stage.bagooms.entries()) {
+    if (sim.defeated.has(i)) continue;
+    if (Math.abs(g.x - b.x) > 300) continue;
+    const hit = classifyBagoomHit(bb, { x: g.x, y: -BAGOOM.h, w: BAGOOM.w, h: BAGOOM.h }, b.vy);
+    if (hit === 'stomp') {
+      sim.defeated.add(i);
+      b.vy = -jumpV0() * 0.55;
+      b.onGround = false;
+    } else if (hit === 'hit' && sim.hurtTimer === 0) {
+      sim.hurtTimer = 0.8;
+    }
+  }
+
+  // 화면 왼쪽 끝까지 밀리면 원래 자리로 되돌린다 (본 게임에서는 사망)
+  if (b.x < sim.cameraX + 20) {
+    sim.hurtTimer = 0.8;
+    sim.cameraX = Math.max(0, b.x - viewport.viewW * BACON.screenXRatio);
   }
 }
 
-function drawReadout(ctx) {
-  const pad = 12;
-  const lines = [
-    `${viewport.cssW}×${viewport.cssH}px  ·  dpr ${viewport.dpr}`,
-    `scale ${viewport.scale.toFixed(3)} px/u`,
-    `보이는 가로 ${Math.round(viewport.viewW)}u  세로 ${Math.round(viewport.viewH)}u`,
-    `지면 높이 ${Math.round((viewport.cssH - viewport.groundScreenY) / viewport.scale)}u`,
-    `베이컨 화면 크기 ${Math.round(BACON.h * viewport.scale)}px`,
-    input.held ? '누르는 중' : '탭하거나 스페이스를 눌러보세요',
-  ];
-  const size = Math.max(11, Math.min(15, viewport.cssW / 30));
+// ─── 그리기 ─────────────────────────────────────────────
+let readoutBottom = 0;
 
-  ctx.font = `${size}px system-ui, sans-serif`;
+function drawEntities(ctx) {
+  const s = viewport.scale;
+  const cam = sim.cameraX;
+
+  for (const o of sim.stage.obstacles) {
+    const px = sx(o.x, cam);
+    if (px > viewport.cssW + 40 || px + su(o.w) < -40) continue;
+    drawObstacle(ctx, o.kind, px, sy(-o.h), su(o.w), su(o.h), s);
+  }
+
+  for (const [i, g] of sim.stage.bagooms.entries()) {
+    const px = sx(g.x, cam);
+    if (px > viewport.cssW + 40 || px + su(BAGOOM.w) < -40) continue;
+    drawBagoom(ctx, px, sy(-BAGOOM.h), s, {
+      phase: g.x * 0.05 + performance.now() * 0.006,
+      squashed: sim.defeated.has(i),
+    });
+  }
+
+  const pacX = sim.stage.length - PACMAN_SIZE - 60;
+  const ppx = sx(pacX, cam);
+  if (ppx < viewport.cssW + 200 && ppx > -su(PACMAN_SIZE) - 200) {
+    drawPacman(ctx, ppx, sy(-PACMAN_SIZE), su(PACMAN_SIZE), s, { chomp: performance.now() * 0.006 });
+  }
+
+  const b = sim.bacon;
+  drawBacon(ctx, sx(b.x, cam), sy(b.y), s, {
+    runPhase: b.runPhase,
+    airborne: !b.onGround,
+    hurt: sim.hurtTimer > 0,
+  });
+}
+
+function drawApexGuide(ctx) {
+  const y = sy(-(BACON.h + apex()));
+  ctx.save();
+  ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+  ctx.setLineDash([7, 7]);
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(0, y);
+  ctx.lineTo(viewport.cssW, y);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawProgress(ctx) {
+  const m = 10;
+  const w = viewport.cssW - m * 2;
+  const y = m + 8;
+  const t = Math.max(0, Math.min(1, sim.bacon.x / sim.stage.length));
+
+  ctx.save();
+  ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+  ctx.lineWidth = 3;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(m, y);
+  ctx.lineTo(m + w, y);
+  ctx.stroke();
+
+  ctx.fillStyle = '#FFD836';
+  ctx.beginPath();
+  ctx.arc(m + w, y, 7, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#1A1A1A';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  ctx.fillStyle = '#FBF6EE';
+  ctx.beginPath();
+  ctx.arc(m + w * t, y, 6, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.restore();
+  return y + 14;
+}
+
+function drawReadout(ctx, top) {
+  const pad = 10;
+  const secs = sim.stage.length / speed();
+  const lines = [
+    `${viewport.cssW}×${viewport.cssH}px · scale ${viewport.scale.toFixed(3)}`,
+    `시야 ${Math.round(viewport.viewW)}×${Math.round(viewport.viewH)}u · 지면 ${Math.round((viewport.cssH - viewport.groundScreenY) / viewport.scale)}u`,
+    `베이컨 ${Math.round(BACON.h * viewport.scale)}px · 점프 ${Math.round(apex())}u · 속도 ${Math.round(speed())}u/s`,
+    `스테이지 ${sim.stageNo} · 장애물 ${sim.stage.obstacles.length}개 · 완주 ${Math.round(secs)}초`,
+  ];
+  const fs = Math.max(10, Math.min(13, viewport.cssW / 34));
+
+  ctx.save();
+  ctx.font = `${fs}px system-ui, sans-serif`;
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
   const w = Math.max(...lines.map((l) => ctx.measureText(l).width)) + pad * 2;
+  const h = lines.length * fs * 1.5 + pad;
   ctx.fillStyle = 'rgba(255,255,255,0.82)';
-  ctx.fillRect(pad, pad, w, lines.length * size * 1.5 + pad);
+  ctx.beginPath();
+  ctx.roundRect(10, top, w, h, 8);
+  ctx.fill();
   ctx.fillStyle = '#12303f';
-  lines.forEach((l, i) => ctx.fillText(l, pad * 2, pad * 1.6 + i * size * 1.5));
-  ctx.textBaseline = 'alphabetic';
+  lines.forEach((l, i) => ctx.fillText(l, 10 + pad, top + pad * 0.6 + i * fs * 1.5));
+  ctx.restore();
+  return top + h;
+}
+
+function drawButtons(ctx) {
+  ctx.save();
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  for (const b of buttons) {
+    ctx.fillStyle = b.action ? 'rgba(255,255,255,0.9)' : 'rgba(18,48,63,0.82)';
+    ctx.beginPath();
+    ctx.roundRect(b.x, b.y, b.w, b.h, 7);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(18,48,63,0.35)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.fillStyle = b.action ? '#12303f' : '#FFFFFF';
+    ctx.font = `${b.fs}px system-ui, sans-serif`;
+    ctx.fillText(b.label, b.x + b.w / 2, b.y + b.h / 2 + 1);
+  }
+  ctx.restore();
 }
 
 function render() {
   const { ctx } = viewport;
   beginFrame();
-  drawBackground(ctx, demo.cameraX);
+  drawBackground(ctx, sim.cameraX);
+  drawApexGuide(ctx);
+  drawEntities(ctx);
 
-  // 실제 크기의 장애물 4종을 나란히 — 세로 화면에서 얼마나 작아지는지 보려고
-  let x = 400;
-  for (const o of OBSTACLE_KINDS) {
-    drawBox(ctx, x, -o.h, o.w, o.h, '#9C6B3F', `${o.kind} ${o.w}×${o.h}`);
-    x += 200;
-  }
-  drawBox(ctx, x, -BAGOOM.h, BAGOOM.w, BAGOOM.h, '#8B5A2B', '바굼');
-
-  // 베이컨 자리 — 화면 왼쪽 30% 지점
-  const baconWorldX = demo.cameraX + viewport.viewW * BACON.screenXRatio;
-  drawBox(ctx, baconWorldX, -BACON.h, BACON.w, BACON.h, '#2B2B33', '베이컨');
-
-  // 점프 최고점 표시선
-  const apexY = sy(-(BACON.h + 224));
-  ctx.strokeStyle = 'rgba(255,255,255,0.7)';
-  ctx.setLineDash([6, 6]);
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(0, apexY);
-  ctx.lineTo(viewport.cssW, apexY);
-  ctx.stroke();
-  ctx.setLineDash([]);
-
-  drawReadout(ctx);
+  const afterBar = drawProgress(ctx);
+  readoutBottom = drawReadout(ctx, afterBar);
+  layoutButtons();
+  drawButtons(ctx);
 }
 
 let last = performance.now();
 function frame(now) {
   const dt = Math.min((now - last) / 1000, 0.05); // 탭 전환 후 한 번에 크게 뛰는 것을 막는다
   last = now;
-
-  if (consumePress()) demo.running = !demo.running;
-  if (demo.running) {
-    demo.cameraX += STAGES[0].speed * dt;
-    if (demo.cameraX > demo.stage.length) demo.cameraX = 0;
-  }
-
+  if (!sim.paused) step(dt);
+  else consumePress();
   render();
   requestAnimationFrame(frame);
 }

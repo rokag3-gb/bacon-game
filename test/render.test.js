@@ -23,8 +23,16 @@ function makeCtx() {
     moveTo: () => {},
     lineTo: () => {},
     arc: () => {},
+    arcTo: () => {},
     ellipse: () => {},
     rect: () => {},
+    roundRect: () => {},
+    quadraticCurveTo: () => {},
+    bezierCurveTo: () => {},
+    translate: () => {},
+    rotate: () => {},
+    scale: () => {},
+    clip: () => {},
     fill: () => {},
     stroke: () => {},
     fillRect: () => {},
@@ -34,7 +42,8 @@ function makeCtx() {
     fillText: () => {},
     strokeText: () => {},
   };
-  // 실제로 호출된 메서드를 세고, 스텁에 없는 메서드를 부르면 바로 실패한다
+  // 실제로 호출된 메서드를 세고, 스텁에 없는 메서드를 부르면 바로 실패한다.
+  // 좌표에 NaN이 섞이면 브라우저는 조용히 아무것도 안 그리므로 여기서 잡는다.
   return new Proxy(ctx, {
     get(target, prop) {
       if (typeof prop === 'string' && !(prop in target) && !prop.startsWith('__')) {
@@ -43,6 +52,11 @@ function makeCtx() {
       const v = target[prop];
       if (typeof v === 'function') {
         return (...args) => {
+          for (const [i, a] of args.entries()) {
+            if (typeof a === 'number' && !Number.isFinite(a)) {
+              throw new Error(`${String(prop)}()의 ${i}번째 인자가 ${a}`);
+            }
+          }
           calls.push(prop);
           return v(...args);
         };
@@ -162,6 +176,43 @@ test('가로 화면의 지면 높이는 그대로다', () => {
     const fromBottom = (viewport.cssH - viewport.groundScreenY) / viewport.scale;
     assert.ok(fromBottom < 150, `${s.name}: 가로인데 지면이 ${fromBottom.toFixed(0)}u로 높다`);
   }
+});
+
+// 스프라이트는 "예쁜가"를 테스트할 수 없지만, 좌표에 NaN이 섞이면 브라우저가
+// 조용히 아무것도 안 그린다. 그 사고는 여기서 잡힌다.
+test('모든 스프라이트가 NaN 없이 그려진다', async () => {
+  const { drawBacon, drawBagoom, drawObstacle, drawPacman } = await import('../src/sprites.js');
+  const { OBSTACLE_KINDS, BACON, BAGOOM } = await import('../src/config.js');
+
+  installDom(844, 390);
+  attach(makeCanvas(844, 390));
+  const ctx = viewport.ctx;
+  const s = viewport.scale;
+
+  for (const phase of [0, 0.7, 1.6, 3.4]) {
+    for (const airborne of [false, true]) {
+      for (const hurt of [false, true]) {
+        assert.doesNotThrow(
+          () => drawBacon(ctx, 100, 100, s, { runPhase: phase, airborne, hurt }),
+          `베이컨 (phase ${phase}, 공중 ${airborne}, 피격 ${hurt})`,
+        );
+      }
+    }
+    for (const squashed of [false, true]) {
+      assert.doesNotThrow(() => drawBagoom(ctx, 100, 100, s, { phase, squashed }), '바굼');
+    }
+    assert.doesNotThrow(() => drawPacman(ctx, 100, 100, 160 * s, s, { chomp: phase }), '팩맨');
+  }
+
+  for (const o of OBSTACLE_KINDS) {
+    assert.doesNotThrow(
+      () => drawObstacle(ctx, o.kind, 100, 100, o.w * s, o.h * s, s),
+      `장애물 ${o.kind}`,
+    );
+  }
+  assert.doesNotThrow(() => drawObstacle(ctx, '없는종류', 100, 100, 40, 40, s), '모르는 종류');
+
+  assert.ok(BACON.w > 0 && BAGOOM.w > 0);
 });
 
 test('회전해도 scale만 다시 계산된다', () => {

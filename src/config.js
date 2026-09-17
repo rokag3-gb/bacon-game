@@ -32,7 +32,7 @@ export const GROUND_FROM_BOTTOM = {
   ratio: 0.22,
   min: 90,
   max: 150,              // 가로에서의 상한
-  tallMax: 450,          // 세로에서 도달할 높이
+  tallMax: 500,          // 세로에서 도달할 높이
   tallFrom: 0.75,        // viewH / viewW 가 이 값을 넘으면 올라가기 시작
   tallTo: 1.0,           // 이 값에서 완전히 올라간다
 };
