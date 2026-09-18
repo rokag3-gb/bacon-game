@@ -8,6 +8,15 @@ export const input = {
   _pressed: false,  // 이번 프레임에 새로 눌렸는가
 };
 
+// 메뉴 조작용 이벤트 큐. 점프와 달리 놓치면 안 되므로 쌓아 두고 씬이 꺼내 쓴다.
+let menuQueue = [];
+
+export function consumeMenu() {
+  const q = menuQueue;
+  menuQueue = [];
+  return q;
+}
+
 // HUD 아이콘 위를 눌렀을 때는 점프로 치지 않는다.
 // 씬이 { x, y, w, h } 목록(CSS 픽셀)을 넣어두면 그 영역은 건너뛴다.
 let uiZones = [];
@@ -35,6 +44,10 @@ function release() {
 
 export function attach(canvas) {
   addEventListener('keydown', (e) => {
+    if (e.code === 'ArrowUp') menuQueue.push('up');
+    else if (e.code === 'ArrowDown') menuQueue.push('down');
+    else if (e.code === 'Escape') menuQueue.push('escape');
+
     if (!JUMP_KEYS.has(e.code)) return;
     e.preventDefault();
     if (!e.repeat) press();

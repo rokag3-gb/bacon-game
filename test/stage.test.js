@@ -8,7 +8,7 @@ import {
   BAGOOM,
   START_CLEAR,
   END_CLEAR,
-  BAGOOM_MIN_SEPARATION,
+  BAGOOM_SEPARATION_FACTOR,
   OBSTACLE_GAP_FACTOR,
   BAGOOM_GAP_FACTOR,
   CHECKPOINT_BACK_SECONDS,
@@ -86,11 +86,18 @@ test('바굼은 장애물에서 충분히 떨어져 있다', () => {
   });
 });
 
-test('바굼끼리 겹치지 않는다', () => {
+// 바굼 둘이 붙어 있으면, 앞 바굼을 뛰어넘어 착지하는 순간 뒤 바굼에 닿아 죽는다.
+// 그래서 간격도 속도에 맞춰 늘어나야 한다.
+test('바굼끼리 한 번 뛸 거리보다 넓게 떨어져 있다', () => {
   eachStage((s, n, seed) => {
+    const sep = airDistance(s.speed) * BAGOOM_SEPARATION_FACTOR;
     for (let i = 1; i < s.bagooms.length; i++) {
       const gap = s.bagooms[i].x - (s.bagooms[i - 1].x + BAGOOM.w);
-      assert.ok(gap >= BAGOOM_MIN_SEPARATION - 0.001, `스테이지 ${n}/${seed}: 바굼 간격 ${gap.toFixed(1)}u`);
+      assert.ok(
+        gap >= sep - 0.001,
+        `스테이지 ${n}/${seed}: 바굼 간격 ${gap.toFixed(1)}u < ${sep.toFixed(1)}u`,
+      );
+      assert.ok(gap > airDistance(s.speed), '한 번 뛸 거리보다 좁다');
     }
   });
 });

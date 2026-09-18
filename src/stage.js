@@ -15,7 +15,7 @@ import {
   END_CLEAR,
   OBSTACLE_GAP_FACTOR,
   BAGOOM_GAP_FACTOR,
-  BAGOOM_MIN_SEPARATION,
+  BAGOOM_SEPARATION_FACTOR,
 } from './config.js';
 import { mulberry32, pick } from './rng.js';
 import { airDistance } from './physics.js';
@@ -53,7 +53,7 @@ function placeObstacles(rand, count, usableStart, usableLength, minGap) {
 }
 
 // 장애물 사이의 빈 구간을 모아 바굼을 놓는다.
-function placeBagooms(rand, count, usableStart, usableEnd, obstacles, clearance) {
+function placeBagooms(rand, count, usableStart, usableEnd, obstacles, clearance, separation) {
   // 장애물 좌우로 clearance만큼 물러난 구간이 바굼이 설 수 있는 자리다
   let intervals = [];
   let cursor = usableStart;
@@ -85,8 +85,8 @@ function placeBagooms(rand, count, usableStart, usableEnd, obstacles, clearance)
 
     // 쓴 자리를 구간에서 파내 바굼끼리 겹치지 않게 한다.
     // 왼쪽은 새 바굼의 오른쪽 변이 기준이므로 바굼 폭만큼 더 물러나야 한다.
-    const cutLo = x - BAGOOM_MIN_SEPARATION - BAGOOM.w;
-    const cutHi = x + BAGOOM.w + BAGOOM_MIN_SEPARATION;
+    const cutLo = x - separation - BAGOOM.w;
+    const cutHi = x + BAGOOM.w + separation;
     const rest = [];
     if (cutLo > lo) rest.push([lo, cutLo]);
     if (hi > cutHi) rest.push([cutHi, hi]);
@@ -146,7 +146,8 @@ export function buildStage(stageNo, seed) {
   const usableLength = usableEnd - usableStart;
 
   const obstacles = placeObstacles(rand, cfg.obstacles, usableStart, usableLength, minGap);
-  const bagooms = placeBagooms(rand, cfg.bagooms, usableStart, usableEnd, obstacles, clearance);
+  const separation = air * BAGOOM_SEPARATION_FACTOR;
+  const bagooms = placeBagooms(rand, cfg.bagooms, usableStart, usableEnd, obstacles, clearance, separation);
 
   return {
     stageNo,

@@ -72,7 +72,12 @@ export const START_CLEAR = 1500;      // 스테이지 시작 후 비워두는 �
 export const END_CLEAR = 800;         // 팩맨 앞 비워두는 구간
 export const OBSTACLE_GAP_FACTOR = 1.6;  // 장애물 사이 최소 간격 = 체공거리 × 이 값
 export const BAGOOM_GAP_FACTOR = 0.8;    // 바굼과 장애물 사이 최소 간격
-export const BAGOOM_MIN_SEPARATION = 150; // 바굼끼리 최소 간격
+
+// 바굼끼리 최소 간격 = 체공거리 × 이 값.
+// 이것도 속도에 맞춰 늘어나야 한다. 고정 거리로 두면 빠른 스테이지에서 바굼 둘이
+// 붙어, 앞 바굼을 넘어 착지하는 순간 뒤 바굼에 닿아 죽는 구간이 생긴다.
+// 1보다 크게 잡아 한 번 뛰고 착지했을 때 다음 바굼까지 여유가 남게 한다.
+export const BAGOOM_SEPARATION_FACTOR = 1.2;
 
 // ─── 목숨 / 부활 ────────────────────────────────────────
 export const MAX_LIVES = 3;
