@@ -214,8 +214,42 @@ const OBSTACLE_PAINTERS = {
     }
   },
 
-  // 주황 지붕을 인 갈색 토관
+  // 토관 — 마리오식 초록 관. 입구 테두리가 몸통보다 넓다.
   pipe(ctx, px, py, w, h, s) {
+    const lip = h * 0.2;
+    const inset = w * 0.1;
+
+    // 몸통
+    ctx.fillStyle = '#2FA83C';
+    ctx.beginPath();
+    ctx.rect(px + inset, py + lip, w - inset * 2, h - lip);
+    ctx.fill();
+    ctx.stroke();
+
+    // 몸통 하이라이트와 그늘로 둥근 느낌
+    ctx.fillStyle = 'rgba(255,255,255,0.28)';
+    ctx.fillRect(px + inset + w * 0.08, py + lip, w * 0.16, h - lip);
+    ctx.fillStyle = 'rgba(0,0,0,0.18)';
+    ctx.fillRect(px + w - inset - w * 0.2, py + lip, w * 0.2, h - lip);
+
+    // 입구 테두리 — 밟고 서기 좋게 평평하다
+    ctx.fillStyle = '#35BF45';
+    ctx.beginPath();
+    ctx.rect(px, py, w, lip);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,0.3)';
+    ctx.fillRect(px + w * 0.08, py + lip * 0.18, w * 0.14, lip * 0.64);
+
+    // 관 속 어둠
+    ctx.fillStyle = 'rgba(0,0,0,0.42)';
+    ctx.beginPath();
+    ctx.ellipse(px + w / 2, py + lip * 0.3, w * 0.34, lip * 0.2, 0, 0, Math.PI * 2);
+    ctx.fill();
+  },
+
+  // 주황 지붕을 인 갈색 기둥 — 아이 그림 background.jpg 에 있는 그것
+  tower(ctx, px, py, w, h, s) {
     const roof = h * 0.34;
     ctx.fillStyle = '#8B5A2B';
     ctx.beginPath();
@@ -223,9 +257,11 @@ const OBSTACLE_PAINTERS = {
     ctx.fill();
     ctx.stroke();
 
+    // 지붕은 사다리꼴 — 뾰족하면 베이컨이 꼭짓점 위에 떠 있는 것처럼 보인다
     ctx.fillStyle = '#F58220';
     ctx.beginPath();
-    ctx.moveTo(px + w / 2, py);
+    ctx.moveTo(px + w * 0.2, py);
+    ctx.lineTo(px + w * 0.8, py);
     ctx.lineTo(px + w * 1.06, py + roof);
     ctx.lineTo(px - w * 0.06, py + roof);
     ctx.closePath();
@@ -239,21 +275,33 @@ const OBSTACLE_PAINTERS = {
     ctx.stroke();
   },
 
-  // 침엽수
+  // 침엽수 — 다듬어 놓은 정원수처럼 꼭대기가 평평하다.
+  // 뾰족하면 베이컨이 밟고 섰을 때 꼭짓점 위에 떠 있는 것처럼 보인다.
   tree(ctx, px, py, w, h, s) {
-    const trunk = h * 0.22;
+    const trunk = h * 0.2;
+    const cx = px + w / 2;
+
     ctx.fillStyle = '#8B5A2B';
     ctx.beginPath();
     ctx.rect(px + w * 0.36, py + h - trunk, w * 0.28, trunk);
     ctx.fill();
     ctx.stroke();
 
+    // 아래 단부터 그려 위 단이 덮게 한다. [윗변 y, 아랫변 y, 윗변 폭, 아랫변 폭]
+    const tiers = [
+      [0.5, 0.84, 0.66, 1.0],
+      [0.25, 0.6, 0.76, 0.9],
+      [0.0, 0.34, 0.84, 0.82],
+    ];
     ctx.fillStyle = '#2E8B3A';
-    for (const [top, bot, spread] of [[0, 0.42, 0.62], [0.26, 0.68, 0.82], [0.5, 0.82, 1]]) {
+    for (const [t, b, topW, botW] of tiers) {
+      const ty = py + h * t;
+      const by = py + h * b;
       ctx.beginPath();
-      ctx.moveTo(px + w / 2, py + h * top);
-      ctx.lineTo(px + w / 2 + (w / 2) * spread, py + h * bot);
-      ctx.lineTo(px + w / 2 - (w / 2) * spread, py + h * bot);
+      ctx.moveTo(cx - (w / 2) * topW, ty);
+      ctx.lineTo(cx + (w / 2) * topW, ty);
+      ctx.lineTo(cx + (w / 2) * botW, by);
+      ctx.lineTo(cx - (w / 2) * botW, by);
       ctx.closePath();
       ctx.fill();
       ctx.stroke();
@@ -265,6 +313,22 @@ export function drawObstacle(ctx, kind, px, py, pw, ph, s) {
   ctx.save();
   outline(ctx, s);
   (OBSTACLE_PAINTERS[kind] || OBSTACLE_PAINTERS.brick)(ctx, px, py, pw, ph, s);
+  ctx.restore();
+}
+
+// ─── 하트 ───────────────────────────────────────────────
+export function drawHeart(ctx, cx, cy, r, filled) {
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(cx, cy + r * 0.85);
+  ctx.bezierCurveTo(cx - r * 1.5, cy - r * 0.3, cx - r * 0.5, cy - r * 1.1, cx, cy - r * 0.35);
+  ctx.bezierCurveTo(cx + r * 0.5, cy - r * 1.1, cx + r * 1.5, cy - r * 0.3, cx, cy + r * 0.85);
+  ctx.closePath();
+  ctx.fillStyle = filled ? '#FF4D5E' : 'rgba(255,255,255,0.28)';
+  ctx.fill();
+  ctx.strokeStyle = filled ? '#8E1622' : 'rgba(0,0,0,0.35)';
+  ctx.lineWidth = Math.max(1.2, r * 0.18);
+  ctx.stroke();
   ctx.restore();
 }
 

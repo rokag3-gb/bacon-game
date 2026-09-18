@@ -7,7 +7,10 @@
 import {
   STAGES,
   OBSTACLE_KINDS,
+  BACON,
   BAGOOM,
+  CHECKPOINT_BACK_SECONDS,
+  RESPAWN_CLEARANCE,
   START_CLEAR,
   END_CLEAR,
   OBSTACLE_GAP_FACTOR,
@@ -92,6 +95,36 @@ function placeBagooms(rand, count, usableStart, usableEnd, obstacles, clearance)
 
   bagooms.sort((a, b) => a.x - b.x);
   return bagooms;
+}
+
+// 죽었을 때 되돌아갈 거리. 스테이지마다 스크롤 속도가 달라도 되감기는
+// 시간이 같도록 거리가 아니라 초로 잡는다.
+export function checkpointBack(stage, seconds = CHECKPOINT_BACK_SECONDS) {
+  return stage.speed * seconds;
+}
+
+/**
+ * 죽은 자리에서 물러나 다시 시작할 x.
+ * 그 자리가 장애물이나 바굼과 겹치면 겹치지 않을 때까지 더 물러난다.
+ * 스테이지 시작 1,500u는 항상 비어 있으므로 0까지 가면 반드시 안전하다.
+ */
+export function safeRespawnX(stage, deathX, seconds = CHECKPOINT_BACK_SECONDS) {
+  let x = Math.max(0, deathX - checkpointBack(stage, seconds));
+
+  for (let guard = 0; guard < 200 && x > 0; guard++) {
+    let moved = false;
+    const backOff = (objX, objW) => {
+      if (x + BACON.w + RESPAWN_CLEARANCE > objX && x < objX + objW + RESPAWN_CLEARANCE) {
+        x = objX - BACON.w - RESPAWN_CLEARANCE;
+        moved = true;
+      }
+    };
+    for (const o of stage.obstacles) backOff(o.x, o.w);
+    for (const g of stage.bagooms) backOff(g.x, BAGOOM.w);
+    if (!moved) break;
+  }
+
+  return Math.max(0, x);
 }
 
 /**

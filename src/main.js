@@ -6,11 +6,14 @@
 import { attach as attachViewport, viewport, beginFrame, sx, sy, su } from './viewport.js';
 import { attach as attachInput, input, consumePress, setUiZones, onUiTap } from './input.js';
 import { drawBackground } from './scenery.js';
-import { drawBacon, drawBagoom, drawObstacle, drawPacman } from './sprites.js';
+import { drawBacon, drawBagoom, drawObstacle, drawPacman, drawHeart } from './sprites.js';
 import { createBacon, updateBacon, baconBox } from './bacon.js';
 import { classifyBagoomHit, jumpApex } from './physics.js';
-import { BACON, BAGOOM, GRAVITY, JUMP_V0, STAGE_COUNT } from './config.js';
-import { buildStage } from './stage.js';
+import {
+  BACON, BAGOOM, GRAVITY, JUMP_V0, STAGE_COUNT,
+  MAX_LIVES, INVULN_TIME, BLINK_HZ, DEATH_MARGIN, CHECKPOINT_BACK_SECONDS,
+} from './config.js';
+import { buildStage, safeRespawnX, checkpointBack } from './stage.js';
 import { newSeed } from './rng.js';
 
 const canvas = document.getElementById('game');
@@ -26,7 +29,9 @@ const sim = {
   cameraX: 0,
   bacon: null,
   defeated: new Set(),
-  hurtTimer: 0,
+  lives: MAX_LIVES,
+  invuln: 0,
+  backSeconds: CHECKPOINT_BACK_SECONDS,
   speedMul: 1,
   jumpMul: 1,
   paused: false,
@@ -38,7 +43,8 @@ function loadStage(stageNo, seed) {
   sim.stage = buildStage(stageNo, seed);
   sim.cameraX = 0;
   sim.defeated.clear();
-  sim.hurtTimer = 0;
+  sim.lives = MAX_LIVES;
+  sim.invuln = 0;
   sim.bacon = createBacon(viewport.viewW * BACON.screenXRatio);
 }
 loadStage(1, sim.seed);
@@ -96,6 +102,11 @@ function layoutButtons() {
     ['▶', 2.4, () => (sim.speedMul = Math.min(2, sim.speedMul + 0.05))],
   ]);
   row(top + (h + 6) * 3, [
+    ['되감기 ◀', 4.6, () => (sim.backSeconds = Math.max(2, sim.backSeconds - 1))],
+    [`${sim.backSeconds}초`, 3.4, null],
+    ['▶', 2.4, () => (sim.backSeconds = Math.min(20, sim.backSeconds + 1))],
+  ]);
+  row(top + (h + 6) * 4, [
     ['▶▶ 다음 장애물', 9, skipToNextObstacle],
     [sim.paused ? '재생' : '멈춤', 3.4, () => (sim.paused = !sim.paused)],
   ]);
@@ -119,6 +130,8 @@ addEventListener('keydown', (e) => {
   else if (k === ']') sim.jumpMul = Math.min(2, sim.jumpMul + 0.05);
   else if (k === '-') sim.speedMul = Math.max(0.4, sim.speedMul - 0.05);
   else if (k === '=' || k === '+') sim.speedMul = Math.min(2, sim.speedMul + 0.05);
+  else if (k === ',') sim.backSeconds = Math.max(2, sim.backSeconds - 1);
+  else if (k === '.') sim.backSeconds = Math.min(20, sim.backSeconds + 1);
   else if (k === 'f' || k === 'F') skipToNextObstacle();
   else if (k === 'p' || k === 'P') sim.paused = !sim.paused;
 });
@@ -130,10 +143,34 @@ function nearbyObstacles() {
   return sim.stage.obstacles.filter((o) => o.x + o.w > lo && o.x < hi);
 }
 
+function respawn() {
+  const b = sim.bacon;
+  const x = safeRespawnX(sim.stage, b.x, sim.backSeconds);
+  sim.cameraX = Math.max(0, x - viewport.viewW * BACON.screenXRatio);
+  b.x = sim.cameraX + viewport.viewW * BACON.screenXRatio;
+  b.y = -BACON.h;
+  b.vy = 0;
+  b.onGround = true;
+  b.blocked = false;
+  sim.invuln = INVULN_TIME;
+}
+
+function die() {
+  if (sim.invuln > 0) return;
+  sim.lives -= 1;
+  if (sim.lives <= 0) {
+    // 목숨을 다 쓰면 스테이지 처음부터. 배치는 시드가 같아 그대로다.
+    loadStage(sim.stageNo, sim.seed);
+    return;
+  }
+  respawn();
+}
+
 function step(dt) {
   const b = sim.bacon;
   const pressed = consumePress();
 
+  sim.invuln = Math.max(0, sim.invuln - dt);
   sim.cameraX += speed() * dt;
   if (sim.cameraX > sim.stage.length) sim.cameraX = 0;
 
@@ -145,8 +182,7 @@ function step(dt) {
     jumpV0: jumpV0(),
   });
 
-  // 바굼 — 밟으면 잡히고, 옆으로 닿으면 잠깐 반투명해진다 (테스트 모드라 안 죽는다)
-  sim.hurtTimer = Math.max(0, sim.hurtTimer - dt);
+  // 바굼 — 위에서 밟으면 잡히고, 옆이나 아래로 닿으면 죽는다
   const bb = baconBox(b);
   for (const [i, g] of sim.stage.bagooms.entries()) {
     if (sim.defeated.has(i)) continue;
@@ -156,16 +192,14 @@ function step(dt) {
       sim.defeated.add(i);
       b.vy = -jumpV0() * 0.55;
       b.onGround = false;
-    } else if (hit === 'hit' && sim.hurtTimer === 0) {
-      sim.hurtTimer = 0.8;
+    } else if (hit === 'hit') {
+      die();
+      return;
     }
   }
 
-  // 화면 왼쪽 끝까지 밀리면 원래 자리로 되돌린다 (본 게임에서는 사망)
-  if (b.x < sim.cameraX + 20) {
-    sim.hurtTimer = 0.8;
-    sim.cameraX = Math.max(0, b.x - viewport.viewW * BACON.screenXRatio);
-  }
+  // 장애물에 끼어 화면 왼쪽 끝까지 밀리면 사망
+  if (b.x < sim.cameraX + DEATH_MARGIN) die();
 }
 
 // ─── 그리기 ─────────────────────────────────────────────
@@ -196,12 +230,16 @@ function drawEntities(ctx) {
     drawPacman(ctx, ppx, sy(-PACMAN_SIZE), su(PACMAN_SIZE), s, { chomp: performance.now() * 0.006 });
   }
 
+  // 무적 동안 깜빡인다 — 보였다 안 보였다 해야 무적인 게 눈에 띈다
   const b = sim.bacon;
-  drawBacon(ctx, sx(b.x, cam), sy(b.y), s, {
-    runPhase: b.runPhase,
-    airborne: !b.onGround,
-    hurt: sim.hurtTimer > 0,
-  });
+  const blinkOff = sim.invuln > 0 && Math.floor(performance.now() / 1000 * BLINK_HZ) % 2 === 1;
+  if (!blinkOff) {
+    drawBacon(ctx, sx(b.x, cam), sy(b.y), s, {
+      runPhase: b.runPhase,
+      airborne: !b.onGround,
+      hurt: sim.invuln > 0,
+    });
+  }
 }
 
 function drawApexGuide(ctx) {
@@ -249,6 +287,15 @@ function drawProgress(ctx) {
   return y + 14;
 }
 
+function drawLives(ctx, top) {
+  const r = Math.max(8, Math.min(13, viewport.cssW / 34));
+  const gap = r * 2.6;
+  for (let i = 0; i < MAX_LIVES; i++) {
+    drawHeart(ctx, 10 + r + i * gap, top + r, r, i < sim.lives);
+  }
+  return top + r * 2.2;
+}
+
 function drawReadout(ctx, top) {
   const pad = 10;
   const secs = sim.stage.length / speed();
@@ -257,6 +304,7 @@ function drawReadout(ctx, top) {
     `시야 ${Math.round(viewport.viewW)}×${Math.round(viewport.viewH)}u · 지면 ${Math.round((viewport.cssH - viewport.groundScreenY) / viewport.scale)}u`,
     `베이컨 ${Math.round(BACON.h * viewport.scale)}px · 점프 ${Math.round(apex())}u · 속도 ${Math.round(speed())}u/s`,
     `스테이지 ${sim.stageNo} · 장애물 ${sim.stage.obstacles.length}개 · 완주 ${Math.round(secs)}초`,
+    `되감기 ${sim.backSeconds}초 = ${Math.round(checkpointBack(sim.stage, sim.backSeconds))}u`,
   ];
   const fs = Math.max(10, Math.min(13, viewport.cssW / 34));
 
@@ -303,7 +351,8 @@ function render() {
   drawEntities(ctx);
 
   const afterBar = drawProgress(ctx);
-  readoutBottom = drawReadout(ctx, afterBar);
+  const afterLives = drawLives(ctx, afterBar);
+  readoutBottom = drawReadout(ctx, afterLives + 4);
   layoutButtons();
   drawButtons(ctx);
 }

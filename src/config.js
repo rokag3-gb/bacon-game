@@ -49,7 +49,8 @@ export const BAGOOM = {
 export const OBSTACLE_KINDS = [
   { kind: 'bush',  w: 60, h: 55  },  // 덤불
   { kind: 'brick', w: 45, h: 100 },  // 벽돌 기둥
-  { kind: 'pipe',  w: 50, h: 120 },  // 주황 지붕 토관
+  { kind: 'pipe',  w: 52, h: 110 },  // 토관 (마리오식 초록 관)
+  { kind: 'tower', w: 50, h: 120 },  // 주황 지붕 기둥 — 아이 그림의 그것
   { kind: 'tree',  w: 55, h: 135 },  // 침엽수
 ];
 
@@ -75,8 +76,17 @@ export const BAGOOM_MIN_SEPARATION = 150; // 바굼끼리 최소 간격
 
 // ─── 목숨 / 부활 ────────────────────────────────────────
 export const MAX_LIVES = 3;
-export const CHECKPOINT_BACK = 1200;  // 죽은 지점에서 이만큼 뒤로 물러나 재개
-export const INVULN_TIME = 1.5;       // 부활 후 무적 (초)
+
+// 죽은 지점에서 얼마나 뒤로 물러나 재개할지.
+//
+// 거리가 아니라 시간으로 잡는다. 고정 거리(예전 1200u)로 하면 스크롤이 빠른
+// 뒷 스테이지일수록 되감기는 시간이 짧아져, 정작 어려운 스테이지에서 되돌아가는
+// 맛이 사라진다. 초로 잡으면 어느 스테이지에서든 같은 만큼 되감긴다.
+export const CHECKPOINT_BACK_SECONDS = 8;
+
+export const RESPAWN_CLEARANCE = 60;  // 부활 지점과 장애물 사이 최소 여유
+export const INVULN_TIME = 2.0;       // 부활 후 무적 (초)
+export const BLINK_HZ = 7;            // 무적 동안 깜빡이는 빈도
 export const DEATH_MARGIN = 20;       // 카메라 왼쪽 끝에서 이만큼 밀리면 사망
 
 // ─── 점수 ───────────────────────────────────────────────

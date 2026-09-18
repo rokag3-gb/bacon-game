@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { buildStage } from '../src/stage.js';
+import { buildStage, safeRespawnX, checkpointBack } from '../src/stage.js';
 import {
   STAGES,
   BACON,
@@ -11,6 +11,8 @@ import {
   BAGOOM_MIN_SEPARATION,
   OBSTACLE_GAP_FACTOR,
   BAGOOM_GAP_FACTOR,
+  CHECKPOINT_BACK_SECONDS,
+  RESPAWN_CLEARANCE,
 } from '../src/config.js';
 import { airDistance, canClear } from '../src/physics.js';
 
@@ -117,6 +119,54 @@ test('스테이지가 올라갈수록 장애물이 자주 나온다', () => {
   for (let i = 1; i < density.length; i++) {
     assert.ok(density[i] > density[i - 1], `스테이지 ${i + 1}의 빈도가 더 낮다`);
   }
+});
+
+// ─── 부활 지점 ──────────────────────────────────────────
+
+test('되감기는 거리가 아니라 시간이라 스테이지마다 같은 만큼 되돌아간다', () => {
+  for (const n of stageNos) {
+    const s = buildStage(n, 55);
+    const back = checkpointBack(s);
+    assert.ok(
+      Math.abs(back / s.speed - CHECKPOINT_BACK_SECONDS) < 0.001,
+      `스테이지 ${n}: ${(back / s.speed).toFixed(2)}초`,
+    );
+  }
+  // 빠른 스테이지일수록 되감기는 거리가 길어야 시간이 같아진다
+  assert.ok(checkpointBack(buildStage(5, 1)) > checkpointBack(buildStage(1, 1)));
+});
+
+test('부활 지점은 장애물과 바굼에서 떨어져 있다', () => {
+  eachStage((s, n, seed) => {
+    // 스테이지 곳곳에서 죽어봤다고 치고 전부 확인한다
+    for (let deathX = 500; deathX < s.length; deathX += 700) {
+      const x = safeRespawnX(s, deathX);
+      assert.ok(x >= 0, `음수 좌표 ${x}`);
+      for (const o of s.obstacles) {
+        const clear = x + BACON.w + RESPAWN_CLEARANCE <= o.x || x >= o.x + o.w + RESPAWN_CLEARANCE;
+        assert.ok(clear, `스테이지 ${n}/${seed}: 부활 ${x.toFixed(0)} 이 ${o.kind}(${o.x.toFixed(0)})에 붙었다`);
+      }
+      for (const g of s.bagooms) {
+        const clear = x + BACON.w + RESPAWN_CLEARANCE <= g.x || x >= g.x + BAGOOM.w + RESPAWN_CLEARANCE;
+        assert.ok(clear, `스테이지 ${n}/${seed}: 부활 ${x.toFixed(0)} 이 바굼(${g.x.toFixed(0)})에 붙었다`);
+      }
+    }
+  });
+});
+
+test('부활 지점은 죽은 자리보다 반드시 뒤다', () => {
+  eachStage((s) => {
+    for (let deathX = 2000; deathX < s.length; deathX += 900) {
+      assert.ok(safeRespawnX(s, deathX) < deathX);
+    }
+  });
+});
+
+test('되감기 초를 늘리면 더 뒤로 간다', () => {
+  const s = buildStage(3, 2026);
+  const near = safeRespawnX(s, 15000, 4);
+  const far = safeRespawnX(s, 15000, 12);
+  assert.ok(far < near, `4초 ${near.toFixed(0)} vs 12초 ${far.toFixed(0)}`);
 });
 
 test('없는 스테이지는 거부한다', () => {
