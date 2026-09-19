@@ -28,7 +28,7 @@ function hash(i) {
 
 function drawSun(ctx, cssW) {
   // 아이 그림처럼 오른쪽 위에, 뾰족한 햇살을 두른 노란 원
-  const r = Math.max(22, Math.min(su(70), cssW * 0.09));
+  const r = Math.max(11, Math.min(su(35), cssW * 0.045));
   const cx = cssW * 0.82;
   const cy = Math.max(r * 2.2, viewport.groundScreenY * 0.18);
 
@@ -63,20 +63,42 @@ function drawCloud(ctx, x, y, s) {
   ctx.fill();
 }
 
-// 구름은 배경보다 훨씬 천천히 흘러 깊이를 준다
+// 구름은 여러 겹으로 흐른다. 멀리 있는 것일수록 작고 느리고 흐릿하게,
+// 가까운 것일수록 크고 빠르고 또렷하게 — 그래야 하늘에 깊이가 생긴다.
+// 자리와 크기는 월드 좌표 해시로 뽑아 스크롤해도 흔들리지 않는다.
+const CLOUD_LAYERS = [
+  { parallax: 0.08, size: 0.55, band: [0.08, 0.34], span: 430, alpha: 0.62 },
+  { parallax: 0.16, size: 0.75, band: [0.14, 0.46], span: 520, alpha: 0.74 },
+  { parallax: 0.28, size: 1.0,  band: [0.06, 0.32], span: 640, alpha: 0.86 },
+  { parallax: 0.44, size: 1.35, band: [0.22, 0.58], span: 780, alpha: 0.95 },
+  { parallax: 0.62, size: 1.7,  band: [0.04, 0.26], span: 980, alpha: 1.0  },
+];
+
 function drawClouds(ctx, cameraX, cssW) {
-  const s = Math.max(14, su(38));
-  const span = su(1400);
-  const drift = (cameraX * 0.25) % span;
-  const band = viewport.groundScreenY * 0.42;
+  const sky = viewport.groundScreenY;
+  if (sky <= 0) return;
+  const base = Math.max(10, su(34));
 
   ctx.save();
   ctx.fillStyle = COLORS.cloud;
-  ctx.globalAlpha = 0.9;
-  for (let i = -1; i * span - drift < cssW + span; i++) {
-    const x = i * span - drift;
-    drawCloud(ctx, x, band * 0.6, s);
-    drawCloud(ctx, x + span * 0.55, band * 1.15, s * 0.75);
+
+  for (const [li, layer] of CLOUD_LAYERS.entries()) {
+    const span = su(layer.span);
+    if (span <= 0) continue;
+    const drift = su(cameraX * layer.parallax);
+    const first = Math.floor(drift / span) - 1;
+    ctx.globalAlpha = layer.alpha;
+
+    for (let i = first; i * span - drift < cssW + span; i++) {
+      const h1 = hash(i * 6151 + li * 48619);
+      if (h1 > 0.72) continue; // 슬롯의 약 70%만 채운다
+      const h2 = hash(i * 20011 + li * 91711);
+      const h3 = hash(i * 40009 + li * 13337);
+
+      const x = i * span - drift + h2 * span * 0.7;
+      const y = sky * (layer.band[0] + h3 * (layer.band[1] - layer.band[0]));
+      drawCloud(ctx, x, y, base * layer.size * (0.8 + h1 * 0.55));
+    }
   }
   ctx.restore();
 }

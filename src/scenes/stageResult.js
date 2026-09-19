@@ -1,6 +1,5 @@
 // 스테이지 결과 — 별 등급과 점수 내역.
 
-import { viewport } from '../viewport.js';
 import { drawBackground } from '../scenery.js';
 import { drawPopup, drawStars, drawIcons, hitZone, ui } from '../ui.js';
 import { consumePress, setUiZones } from '../input.js';
@@ -47,26 +46,27 @@ export const stageResult = {
   render(ctx) {
     drawBackground(ctx, 0);
 
-    const pad = (n) => String(n).padStart(5, ' ');
-    drawPopup(ctx, {
+    const num = (n) => n.toLocaleString('ko-KR');
+    const starR = ui(19);
+    const popup = drawPopup(ctx, {
       title: `스테이지 ${result.stageNo} 클리어!`,
-      lines: [
-        '',
-        '',
-        `바굼 처치   ${result.bagoomsDefeated} × 100 = ${pad(result.bagoom)}`,
-        `도착 보너스          = ${pad(result.arrival)}`,
-        `남은 목숨   ${result.livesLeft} × 200 = ${pad(result.lives)}`,
-        '─────────────────',
-        `스테이지 점수   ${pad(result.total)}`,
-        `총점            ${pad(state.totalScore)}`,
-        '',
+      topSpace: starR * 2.8, // 별을 얹을 자리
+      rows: [
+        [`바굼 처치  ${result.bagoomsDefeated} × 100`, num(result.bagoom)],
+        ['도착 보너스', num(result.arrival)],
+        [`남은 목숨  ${result.livesLeft} × 200`, num(result.lives)],
+        [null],
+        ['스테이지 점수', num(result.total), true],
+        ['총점', num(state.totalScore), true],
+      ],
+      footer: [
         t > 0.6 ? (isLastStage(result.stageNo) ? '엔터 — 마지막으로' : '엔터 — 다음 스테이지') : ' ',
       ],
     });
 
-    // 팝업 제목 바로 아래에 별을 겹쳐 그린다
-    const r = ui(19);
-    drawStars(ctx, shown, viewport.cssW / 2, viewport.cssH / 2 - ui(20) * 2.6, r);
+    // 머리 띠 바로 아래, 비워둔 자리에 별을 얹는다
+    const b = popup.box;
+    drawStars(ctx, shown, b.x + b.w / 2, b.y + b.headH + b.topSpace / 2 + starR * 0.2, starR);
 
     zones = drawIcons(ctx, { muted: isMuted() }).filter((z) => z.id === 'mute');
     setUiZones(zones);
