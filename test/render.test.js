@@ -111,6 +111,30 @@ test('모든 화면 비율에서 한 프레임이 예외 없이 그려진다', (
   }
 });
 
+// 구름 모양은 여섯 가지를 해시로 고른다. 카메라를 멀리 옮겨가며 그려
+// 여섯 가지가 모두 한 번씩은 나오도록 훑는다.
+test('배경을 죽 스크롤해도 예외가 없다', () => {
+  installDom(844, 390);
+  attach(makeCanvas(844, 390));
+  for (let cam = 0; cam < 40000; cam += 137) {
+    assert.doesNotThrow(() => drawBackground(viewport.ctx, cam), `cameraX ${cam}`);
+  }
+});
+
+test('나무 간판이 여러 화면비에서 그려진다', async () => {
+  const { drawSign, CREDITS, drawCredits } = await import('../src/ui.js');
+  for (const s of SCREENS) {
+    installDom(s.w, s.h);
+    attach(makeCanvas(s.w, s.h));
+    const box = drawSign(viewport.ctx, '베이컨 먹방', s.h * 0.26);
+    assert.ok(box.w > 0 && box.h > 0, `${s.name}: 간판 크기가 0`);
+    assert.ok(box.x >= 0, `${s.name}: 간판이 화면 왼쪽 밖으로 나갔다`);
+    assert.ok(box.x + box.w <= s.w + 0.001, `${s.name}: 간판이 화면 오른쪽 밖으로 나갔다`);
+    assert.doesNotThrow(() => drawCredits(viewport.ctx), s.name);
+  }
+  assert.match(CREDITS, /PEACHSOFT 2026/);
+});
+
 test('어떤 화면에서도 최소 시야가 보장된다', () => {
   for (const s of SCREENS) {
     installDom(s.w, s.h);

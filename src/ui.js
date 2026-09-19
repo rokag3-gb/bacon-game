@@ -323,6 +323,99 @@ export function drawPopup(ctx, {
   return zones;
 }
 
+export const CREDITS = '기획 및 일러스트 KDH · 개발 KJW · ⓒ PEACHSOFT 2026';
+
+export function drawCredits(ctx) {
+  const fs = ui(12);
+  ctx.save();
+  ctx.font = `${fs}px ${FONT}`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'alphabetic';
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = 'rgba(18,48,63,0.55)';
+  ctx.lineWidth = 3;
+  ctx.strokeText(CREDITS, viewport.cssW / 2, viewport.cssH - hudMargin() * 0.7);
+  ctx.fillStyle = 'rgba(255,255,255,0.95)';
+  ctx.fillText(CREDITS, viewport.cssW / 2, viewport.cssH - hudMargin() * 0.7);
+  ctx.restore();
+}
+
+// 나무 간판에 새긴 타이틀. 공원이 배경이라 나무 간판이 어울린다.
+export function drawSign(ctx, text, centerY) {
+  const { cssW } = viewport;
+  const fs = Math.max(26, Math.min(cssW * 0.125, 76));
+
+  ctx.save();
+  ctx.font = `bold ${fs}px ${FONT}`;
+  const textW = ctx.measureText(text).width;
+  const w = Math.min(cssW * 0.9, textW + fs * 1.7);
+  const h = fs * 1.95;
+  const x = (cssW - w) / 2;
+  const y = centerY - h / 2;
+
+  // 기둥 두 개 — 판자 뒤에서 아래로 뻗는다
+  const postW = Math.max(8, fs * 0.22);
+  ctx.fillStyle = '#6B4420';
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = Math.max(2.5, fs * 0.05);
+  ctx.lineJoin = 'round';
+  for (const px of [x + w * 0.22, x + w * 0.78 - postW]) {
+    ctx.beginPath();
+    ctx.rect(px, y + h * 0.4, postW, h * 1.5);
+    ctx.fill();
+    ctx.stroke();
+  }
+
+  // 그림자 — 스티커처럼 도톰하게
+  ctx.fillStyle = 'rgba(26,26,26,0.45)';
+  ctx.beginPath();
+  ctx.roundRect(x + fs * 0.1, y + fs * 0.1, w, h, fs * 0.16);
+  ctx.fill();
+
+  // 판자
+  ctx.fillStyle = '#A5702F';
+  ctx.beginPath();
+  ctx.roundRect(x, y, w, h, fs * 0.16);
+  ctx.fill();
+  ctx.stroke();
+
+  // 나뭇결
+  ctx.save();
+  ctx.beginPath();
+  ctx.roundRect(x, y, w, h, fs * 0.16);
+  ctx.clip();
+  ctx.strokeStyle = 'rgba(90,55,20,0.4)';
+  ctx.lineWidth = Math.max(1.5, fs * 0.035);
+  for (let i = 1; i < 5; i++) {
+    const gy = y + (h / 5) * i;
+    ctx.beginPath();
+    ctx.moveTo(x, gy);
+    ctx.bezierCurveTo(x + w * 0.3, gy - h * 0.05, x + w * 0.7, gy + h * 0.05, x + w, gy);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // 네 귀퉁이 못
+  ctx.fillStyle = '#5A3714';
+  for (const [bx, by] of [[0.055, 0.2], [0.945, 0.2], [0.055, 0.8], [0.945, 0.8]]) {
+    ctx.beginPath();
+    ctx.arc(x + w * bx, y + h * by, Math.max(2.5, fs * 0.07), 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // 글씨
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.lineWidth = Math.max(4, fs * 0.15);
+  ctx.strokeStyle = INK;
+  ctx.strokeText(text, x + w / 2, y + h / 2 + fs * 0.04);
+  ctx.fillStyle = '#FBF6EE';
+  ctx.fillText(text, x + w / 2, y + h / 2 + fs * 0.04);
+
+  ctx.restore();
+  return { x, y, w, h };
+}
+
 export function drawCenterText(ctx, text, sub, yRatio = 0.5, alpha = 1) {
   const { cssW, cssH } = viewport;
   ctx.save();

@@ -3,7 +3,7 @@
 import { viewport, sy, su } from '../viewport.js';
 import { drawBackground } from '../scenery.js';
 import { drawBacon, drawPacman } from '../sprites.js';
-import { drawIcons, drawCenterText, hitZone, ui } from '../ui.js';
+import { drawIcons, drawCenterText, drawSign, drawCredits, hitZone } from '../ui.js';
 import { consumePress, setUiZones } from '../input.js';
 import { toggleMute, isMuted, playBgm, sfx } from '../audio.js';
 import { game } from '../game.js';
@@ -47,19 +47,14 @@ export const intro = {
     drawBacon(ctx, viewport.cssW * 0.22, sy(-BACON.h), s, { runPhase: t * 14 });
     drawPacman(ctx, viewport.cssW * 0.72, sy(-140), su(140), s, { chomp: t * 6 });
 
-    drawCenterText(ctx, '베이컨 먹방', '정장 입은 베이컨의 먹히러 가는 모험', 0.24);
+    drawSign(ctx, '베이컨 먹방', viewport.cssH * 0.26);
 
     if (t > 2) {
       const blink = 0.55 + 0.45 * Math.sin(t * 5);
       drawCenterText(ctx, 'PRESS ENTER', '또는 화면을 터치하세요', 0.78, blink);
     }
 
-    ctx.save();
-    ctx.font = `${ui(12)}px system-ui, sans-serif`;
-    ctx.fillStyle = 'rgba(255,255,255,0.85)';
-    ctx.textAlign = 'center';
-    ctx.fillText('기획·그림 — 아이 / 프로그래밍 — 아빠와 클로드', viewport.cssW / 2, viewport.cssH - 14);
-    ctx.restore();
+    drawCredits(ctx);
 
     zones = drawIcons(ctx, { muted: isMuted() }).filter((z) => z.id === 'mute');
     setUiZones(zones);

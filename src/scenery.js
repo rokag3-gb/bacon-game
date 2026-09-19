@@ -54,12 +54,28 @@ function drawSun(ctx, cssW) {
   ctx.restore();
 }
 
-function drawCloud(ctx, x, y, s) {
+// 구름 여섯 가지. 하나뿐이면 하늘이 금방 단조로워진다.
+// 각 모양은 [상대 x, 상대 y, 반지름] 뭉치 목록과 아랫변을 메울 사각형으로 이루어진다.
+const CLOUD_SHAPES = [
+  // 0. 기본 세 뭉치
+  { puffs: [[0, 0, 1], [0.9, -0.35, 0.8], [1.8, 0, 0.7]], base: [-1, 2.9, 1] },
+  // 1. 길고 낮은 네 뭉치
+  { puffs: [[0, 0, 0.75], [0.8, -0.2, 0.95], [1.7, -0.1, 0.8], [2.5, 0.05, 0.6]], base: [-0.75, 3.85, 0.8] },
+  // 2. 봉긋하게 쌓인 것
+  { puffs: [[0, 0, 0.85], [0.55, -0.7, 0.75], [1.2, -0.25, 0.9], [1.9, 0.05, 0.6]], base: [-0.85, 3.35, 0.9] },
+  // 3. 작고 동그란 것
+  { puffs: [[0, 0, 0.85], [0.8, -0.1, 0.7]], base: [-0.85, 2.35, 0.85] },
+  // 4. 옆으로 퍼진 것
+  { puffs: [[0, -0.1, 0.7], [0.75, 0.05, 1.05], [1.65, -0.05, 0.85], [2.4, 0.1, 0.55], [3.05, 0, 0.45]], base: [-0.7, 4.2, 0.95] },
+  // 5. 울퉁불퉁 뭉친 것
+  { puffs: [[0, 0.1, 0.6], [0.5, -0.45, 0.8], [1.1, 0.05, 0.7], [1.6, -0.5, 0.65], [2.2, -0.05, 0.75]], base: [-0.6, 3.55, 0.8] },
+];
+
+function drawCloud(ctx, x, y, s, shape = 0) {
+  const { puffs, base } = CLOUD_SHAPES[shape % CLOUD_SHAPES.length];
   ctx.beginPath();
-  ctx.arc(x, y, s, 0, Math.PI * 2);
-  ctx.arc(x + s * 0.9, y - s * 0.35, s * 0.8, 0, Math.PI * 2);
-  ctx.arc(x + s * 1.8, y, s * 0.7, 0, Math.PI * 2);
-  ctx.rect(x - s, y, s * 2.9, s);
+  for (const [dx, dy, r] of puffs) ctx.arc(x + dx * s, y + dy * s, r * s, 0, Math.PI * 2);
+  ctx.rect(x + base[0] * s, y, base[1] * s, base[2] * s);
   ctx.fill();
 }
 
@@ -94,10 +110,12 @@ function drawClouds(ctx, cameraX, cssW) {
       if (h1 > 0.72) continue; // 슬롯의 약 70%만 채운다
       const h2 = hash(i * 20011 + li * 91711);
       const h3 = hash(i * 40009 + li * 13337);
+      const h4 = hash(i * 65537 + li * 27644);
 
       const x = i * span - drift + h2 * span * 0.7;
       const y = sky * (layer.band[0] + h3 * (layer.band[1] - layer.band[0]));
-      drawCloud(ctx, x, y, base * layer.size * (0.8 + h1 * 0.55));
+      const shape = Math.floor(h4 * CLOUD_SHAPES.length);
+      drawCloud(ctx, x, y, base * layer.size * (0.8 + h1 * 0.55), shape);
     }
   }
   ctx.restore();

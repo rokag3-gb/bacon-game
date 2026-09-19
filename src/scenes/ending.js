@@ -3,7 +3,7 @@
 import { viewport, sy, su } from '../viewport.js';
 import { drawBackground } from '../scenery.js';
 import { drawPacman, drawBacon } from '../sprites.js';
-import { drawStars, drawCenterText, drawIcons, hitZone, ui } from '../ui.js';
+import { drawStars, drawCenterText, drawIcons, drawCredits, hitZone, ui } from '../ui.js';
 import { consumePress, setUiZones } from '../input.js';
 import { toggleMute, isMuted, playBgm, sfx } from '../audio.js';
 import { game } from '../game.js';
@@ -84,12 +84,7 @@ export const ending = {
       drawCenterText(ctx, '', '엔터 — 처음으로', 0.86, blink);
     }
 
-    ctx.save();
-    ctx.font = `${ui(12)}px ${FONT}`;
-    ctx.fillStyle = 'rgba(255,255,255,0.85)';
-    ctx.textAlign = 'center';
-    ctx.fillText('기획·그림 — 아이 / 프로그래밍 — 아빠와 클로드', viewport.cssW / 2, viewport.cssH - 14);
-    ctx.restore();
+    drawCredits(ctx);
 
     zones = drawIcons(ctx, { muted: isMuted() }).filter((z) => z.id === 'mute');
     setUiZones(zones);

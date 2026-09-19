@@ -40,13 +40,19 @@ test('모든 스테이지에서 모든 장애물을 넘을 수 있다', () => {
   }
 });
 
-test('제일 빡빡한 조합은 스테이지 1의 침엽수다', () => {
+// 오토러너에서는 느릴수록 체공 중 이동 거리가 짧아 넘기 어렵다.
+// 그래서 최악 조건은 가장 큰 장애물 × 가장 느린 스테이지다.
+test('제일 빡빡한 조합은 가장 느린 스테이지의 침엽수다', () => {
   const tree = OBSTACLE_KINDS.find((o) => o.kind === 'tree');
-  const slowest = STAGES[0].speed;
+  const slowest = Math.min(...STAGES.map((s) => s.speed));
   const travel = timeAboveHeight(tree.h) * slowest;
   const need = tree.w + BACON.w;
-  assert.ok(travel > need, `${travel.toFixed(1)}u 이동 vs ${need}u 필요`);
-  assert.ok(travel - need < 30, `여유가 ${(travel - need).toFixed(1)}u로 너무 넉넉하다`);
+  const margin = travel - need;
+
+  assert.ok(margin > 0, `${travel.toFixed(1)}u 이동 vs ${need}u 필요 — 넘을 수 없다`);
+  // 여유가 너무 크면 장애물이 시시하다는 뜻이다. 스테이지 1 속도를 300으로
+  // 올리면서 56u까지 늘었다 — 나중에 장애물을 더 키울 여지가 이만큼 있다.
+  assert.ok(margin < 120, `여유 ${margin.toFixed(0)}u — 장애물이 너무 시시하다`);
 });
 
 test('AABB 교차', () => {

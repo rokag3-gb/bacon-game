@@ -68,12 +68,15 @@ export const OBSTACLE_KINDS = [
 // ─── 스테이지 ───────────────────────────────────────────
 // 난이도는 스크롤 속도와 출현 빈도 두 가지로만 올린다.
 // 장애물의 종류와 크기는 스테이지와 무관하다 (전 스테이지 균등 확률).
+// 스테이지 1이 굼떠서 예전 스테이지 3의 속도(300)부터 시작하도록 곡선을 올렸다.
+// 1만 올리면 2(260)보다 빨라져 곡선이 깨지므로 다섯 개를 통째로 다시 잡았다.
+// 속도가 붙은 만큼 길이도 늘려 완주 시간을 1~2분에 맞췄고, 장애물 빈도도 올렸다.
 export const STAGES = [
-  { speed: 220, length: 16000, obstacles: 8,  bagooms: 4  },
-  { speed: 260, length: 20000, obstacles: 14, bagooms: 7  },
-  { speed: 300, length: 26000, obstacles: 22, bagooms: 11 },
-  { speed: 340, length: 32000, obstacles: 30, bagooms: 15 },
-  { speed: 380, length: 38000, obstacles: 40, bagooms: 20 },
+  { speed: 300, length: 21000, obstacles: 14, bagooms: 7  },
+  { speed: 325, length: 26000, obstacles: 22, bagooms: 11 },
+  { speed: 350, length: 31500, obstacles: 32, bagooms: 16 },
+  { speed: 375, length: 37000, obstacles: 42, bagooms: 21 },
+  { speed: 400, length: 42000, obstacles: 52, bagooms: 26 },
 ];
 
 export const STAGE_COUNT = STAGES.length;
