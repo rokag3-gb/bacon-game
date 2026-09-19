@@ -54,8 +54,11 @@ export const play = {
     arriving = null;
     menu = null;
     clock = 0;
-    // 스테이지가 올라갈수록 배경음악도 빨라진다
-    playBgm('stage', 1 + (state.stageNo - 1) * 0.07);
+    // 스테이지가 올라갈수록 빠르고 높아진다 — 같은 곡인데 조여드는 느낌이 난다
+    playBgm('stage', {
+      tempo: 1 + (state.stageNo - 1) * 0.06,
+      transpose: [0, 2, 3, 5, 7][state.stageNo - 1] ?? 0,
+    });
   },
 
   exit() {

@@ -101,23 +101,88 @@ export const sfx = {
 // 16스텝 루프를 앞당겨 예약하는 방식. requestAnimationFrame에 맞추면
 // 탭이 백그라운드로 가거나 프레임이 밀릴 때 박자가 흔들린다.
 
-const TRACKS = {
+// ─── 곡 ─────────────────────────────────────────────────
+// 16스텝 한 마디를 네 개 이어 64스텝 한 바퀴. 다섯 성부가 동시에 울린다.
+//   lead    주선율 (square)
+//   counter 대위 선율 — 길게 끌어 화음을 받친다 (square, 작게)
+//   arp     화음을 쪼갠 아르페지오 (triangle, 아주 작게)
+//   bass    근음과 5도 (triangle)
+//   drum    킥 / 스네어 / 하이햇
+// 전부 직접 지은 가락이고, 조성은 스테이지마다 반음씩 올려 잡는다.
+
+const _ = null;
+const rep = (n, arr) => Array.from({ length: n }, () => arr).flat();
+
+// 화음을 네 번 굴려 한 마디를 채운다
+const CH = { C: [60, 64, 67, 72], Am: [57, 60, 64, 69], F: [53, 57, 60, 65], G: [55, 59, 62, 67] };
+const arpBar = (c) => rep(4, CH[c]);
+const bassBar = (r) => [r, _, r + 7, _, r, _, r + 7, _, r, _, r + 7, _, r + 7, _, r, _];
+
+// 플레이 — A-A'-B-A'' 구성
+const P_A1 = [72, _, 76, _, 79, _, 76, _, 77, _, 76, 74, 72, _, _, _];
+const P_A2 = [72, _, 76, _, 79, _, 81, _, 79, _, 77, 76, 74, _, _, _];
+const P_B  = [71, _, 74, _, 77, _, 74, _, 76, _, 74, 72, 71, _, _, _];
+const P_A3 = [72, _, 76, 79, 81, _, 79, 76, 77, _, 79, _, 72, _, _, _];
+const P_CNT  = [64, _, _, _, 67, _, _, _, 65, _, _, _, 64, _, _, _];
+const P_CNTB = [62, _, _, _, 65, _, _, _, 64, _, _, _, 62, _, _, _];
+const P_DRM  = ['k', _, 'h', _, 's', _, 'h', _, 'k', _, 'h', 'k', 's', _, 'h', 'h'];
+
+// 인트로 — 느리고 성기게, 드럼 없이
+const I_A = [72, _, _, _, 76, _, _, _, 79, _, _, 76, 74, _, _, _];
+const I_B = [71, _, _, _, 74, _, _, _, 77, _, _, 74, 72, _, _, _];
+const I_C = [79, _, _, _, 77, _, _, _, 76, _, _, 74, 72, _, _, _];
+
+// 엔딩 — 올라가는 팡파레
+const E_1 = [72, _, 74, _, 76, _, 79, _, 81, _, _, 79, 76, _, _, _];
+const E_2 = [77, _, 79, _, 81, _, 84, _, 86, _, _, 84, 81, _, _, _];
+const E_3 = [79, _, 81, _, 84, _, 81, _, 79, _, 77, _, 76, _, _, _];
+const E_4 = [72, _, 76, _, 79, _, 84, _, 88, _, _, _, _, _, _, _];
+const E_DRM = ['k', _, _, 'h', 's', _, 'h', _, 'k', 'k', _, 'h', 's', _, 'h', 'h'];
+
+export const TRACKS = {
   intro: {
-    bpm: 96,
-    lead: [72, null, 76, null, 79, null, 76, null, 74, null, 71, null, 67, null, null, null],
-    bass: [48, null, 55, null, 48, null, 55, null, 45, null, 52, null, 43, null, 50, null],
+    bpm: 92,
+    lead: [...I_A, ...I_B, ...I_A, ...I_C],
+    counter: rep(4, [_, _, _, _, 64, _, _, _, _, _, _, _, 62, _, _, _]),
+    arp: [...arpBar('C'), ...arpBar('G'), ...arpBar('C'), ...arpBar('F')],
+    bass: [...bassBar(48), ...bassBar(43), ...bassBar(48), ...bassBar(41)],
+    drum: rep(4, Array(16).fill(_)),
+    arpVol: 0.05,
   },
   stage: {
-    bpm: 132,
-    lead: [72, 76, 79, 76, 72, 74, 76, 74, 71, 74, 76, 74, 69, 71, 74, 71],
-    bass: [48, 48, 55, 48, 53, 53, 60, 53, 50, 50, 57, 50, 43, 43, 50, 55],
+    bpm: 138,
+    lead: [...P_A1, ...P_A2, ...P_B, ...P_A3],
+    counter: [...P_CNT, ...P_CNT, ...P_CNTB, ...P_CNT],
+    arp: [...arpBar('C'), ...arpBar('Am'), ...arpBar('F'), ...arpBar('G')],
+    bass: [...bassBar(48), ...bassBar(45), ...bassBar(41), ...bassBar(43)],
+    drum: rep(4, P_DRM),
+    arpVol: 0.07,
   },
   ending: {
-    bpm: 112,
-    lead: [72, 74, 76, 79, 81, 79, 76, 79, 84, null, 81, null, 79, null, null, null],
-    bass: [48, null, 55, null, 53, null, 60, null, 45, null, 52, null, 48, null, 55, null],
+    bpm: 116,
+    lead: [...E_1, ...E_2, ...E_3, ...E_4],
+    counter: rep(4, [64, _, _, _, _, _, _, _, 67, _, _, _, _, _, _, _]),
+    arp: [...arpBar('C'), ...arpBar('F'), ...arpBar('G'), ...arpBar('C')],
+    bass: [...bassBar(48), ...bassBar(41), ...bassBar(43), ...bassBar(48)],
+    drum: rep(4, E_DRM),
+    arpVol: 0.06,
   },
 };
+
+const LOOP_STEPS = 64;
+
+// 드럼은 음정이 아니라 소리의 결로 구분한다
+function drum(type, delay) {
+  if (!ac || muted) return;
+  if (type === 'k') {
+    blip(150, 45, 0.16, 'sine', 0.55, delay);      // 킥 — 낮게 뚝 떨어진다
+  } else if (type === 's') {
+    noise(0.12, 0.16, delay);                      // 스네어 — 노이즈에
+    blip(240, 170, 0.09, 'triangle', 0.16, delay); // 짧은 몸통을 얹는다
+  } else if (type === 'h') {
+    noise(0.035, 0.06, delay);                     // 하이햇
+  }
+}
 
 let bgm = null;
 let timer = null;
@@ -153,7 +218,7 @@ async function probeFiles() {
     }),
   );
   // 찾아보는 동안 칩튠으로 돌고 있었다면 파일로 갈아탄다
-  if (bgm && files[bgm.name]) playBgm(bgm.name, bgm.tempoMul, true);
+  if (bgm && files[bgm.name]) playBgm(bgm.name, { tempo: bgm.tempo, transpose: bgm.transpose }, true);
 }
 
 function playFile(name, tempoMul) {
@@ -186,15 +251,24 @@ function stopFile() {
   playing = null;
 }
 
-export function playBgm(name, tempoMul = 1, force = false) {
-  if (!force && bgm?.name === name && bgm?.tempoMul === tempoMul) return;
+/**
+ * @param {string} name  intro / stage / ending
+ * @param {object} [opt]
+ * @param {number} [opt.tempo]      1이 원래 빠르기
+ * @param {number} [opt.transpose]  반음 단위 조옮김
+ */
+export function playBgm(name, opt = {}, force = false) {
+  const tempo = opt.tempo ?? 1;
+  const transpose = opt.transpose ?? 0;
+  if (!force && bgm?.name === name && bgm.tempo === tempo && bgm.transpose === transpose) return;
+
   const track = TRACKS[name];
   if (!track) return;
   stopBgm();
-  bgm = { name, track, tempoMul, step: 0, nextTime: 0 };
+  bgm = { name, track, tempo, transpose, step: 0, nextTime: 0 };
 
-  if (playFile(name, tempoMul)) return; // 파일이 있으면 그걸로
-  ensureTimer();                        // 없으면 칩튠 합성
+  if (playFile(name, tempo)) return; // 파일이 있으면 그걸로
+  ensureTimer();                     // 없으면 칩튠 합성
 }
 
 // 소리가 아직 안 깨어났으면 예약만 걸어두고, unlock() 때 이어서 시작한다.
@@ -214,22 +288,27 @@ export function stopBgm() {
 }
 
 function schedule() {
-  if (!ac || !bgm || muted) return;
-  const { track, tempoMul } = bgm;
-  const stepDur = 60 / (track.bpm * tempoMul) / 4; // 16분음표
+  if (!ac || !bgm || muted || playing) return;
+  const { track, tempo, transpose } = bgm;
+  const stepDur = 60 / (track.bpm * tempo) / 4; // 16분음표
   if (bgm.nextTime === 0) bgm.nextTime = ac.currentTime + 0.05;
 
   while (bgm.nextTime < ac.currentTime + 0.15) {
-    const i = bgm.step % 16;
-    const delay = bgm.nextTime - ac.currentTime;
-    const lead = track.lead[i];
-    const bass = track.bass[i];
-    if (lead !== null && lead !== undefined) {
-      blip(midi(lead), midi(lead), stepDur * 1.7, 'square', 0.16, delay);
-    }
-    if (bass !== null && bass !== undefined) {
-      blip(midi(bass), midi(bass), stepDur * 1.5, 'triangle', 0.2, delay);
-    }
+    const i = bgm.step % LOOP_STEPS;
+    const delay = Math.max(0, bgm.nextTime - ac.currentTime);
+
+    const note = (n, dur, type, vol) => {
+      if (n === null || n === undefined) return;
+      const f = midi(n + transpose);
+      blip(f, f, dur, type, vol, delay);
+    };
+
+    note(track.lead[i], stepDur * 1.8, 'square', 0.15);
+    note(track.counter[i], stepDur * 5, 'square', 0.075);  // 길게 끌어 화음을 받친다
+    note(track.arp[i], stepDur * 0.9, 'triangle', track.arpVol);
+    note(track.bass[i], stepDur * 1.6, 'triangle', 0.2);
+    drum(track.drum[i], delay);
+
     bgm.step++;
     bgm.nextTime += stepDur;
   }
