@@ -1,2 +1,7 @@
 node_modules/
 .DS_Store
+
+# 배경음악 파일. 쓸 권리가 있는 것만 직접 넣고,
+# 공개 저장소에 올려도 되는지는 넣는 사람이 판단할 것.
+audio/*
+!audio/README.md

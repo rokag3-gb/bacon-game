@@ -116,4 +116,8 @@ npm test            # 60개
 그림은 전부 캔버스 도형이고, 소리는 Web Audio로 실시간 합성합니다 — 효과음도
 배경음악도 파일이 아니라 코드입니다. 그래서 받아야 할 에셋이 하나도 없습니다.
 
+배경음악은 [`audio/`](audio/)에 파일을 넣으면 합성 대신 그 파일이 재생됩니다.
+그 폴더는 `.gitignore`에 걸려 있으니, 배포까지 하려면 쓸 권리가 있는 음원인지
+먼저 확인하세요 — [`audio/README.md`](audio/README.md)에 적어두었습니다.
+
 설계 문서는 [`docs/superpowers/specs/`](docs/superpowers/specs/)에 있습니다.

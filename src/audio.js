@@ -25,7 +25,8 @@ export function unlock() {
   master = ac.createGain();
   master.gain.value = muted ? 0 : 0.28;
   master.connect(ac.destination);
-  ensureTimer(); // 깨어나기 전에 요청해둔 배경음악이 있으면 여기서 시작한다
+  ensureTimer();  // 깨어나기 전에 요청해둔 배경음악이 있으면 여기서 시작한다
+  probeFiles();   // audio/ 에 넣어둔 음악 파일이 있는지 알아본다
 }
 
 export function isMuted() {
@@ -35,6 +36,7 @@ export function isMuted() {
 export function toggleMute() {
   muted = !muted;
   if (master) master.gain.value = muted ? 0 : 0.28;
+  if (playing) playing.muted = muted;
   try {
     localStorage.setItem(MUTE_KEY, muted ? '1' : '0');
   } catch {
@@ -120,13 +122,79 @@ const TRACKS = {
 let bgm = null;
 let timer = null;
 
-export function playBgm(name, tempoMul = 1) {
-  if (bgm?.name === name && bgm?.tempoMul === tempoMul) return;
+// ─── 오디오 파일 ────────────────────────────────────────
+// audio/intro.mp3, audio/stage.mp3, audio/ending.mp3 가 있으면 합성 대신 그것을
+// 튼다. 없으면 아래 칩튠 루프로 돌아간다. 저장소에는 아무것도 들어 있지 않고
+// .gitignore 로 막아두었다 — 쓸 권리가 있는 파일만 직접 넣으면 된다.
+const FILE_EXTS = ['mp3', 'ogg', 'wav', 'm4a'];
+const files = {};      // 이름 → URL (없으면 null)
+let elements = {};     // 이름 → <audio>
+let playing = null;    // 지금 울리는 <audio>
+let probed = false;
+
+async function probeFiles() {
+  if (probed || typeof fetch !== 'function' || typeof location === 'undefined') return;
+  probed = true;
+  await Promise.all(
+    Object.keys(TRACKS).map(async (name) => {
+      for (const ext of FILE_EXTS) {
+        const url = `audio/${name}.${ext}`;
+        try {
+          const res = await fetch(url, { method: 'HEAD' });
+          if (res.ok) {
+            files[name] = url;
+            return;
+          }
+        } catch {
+          // 없는 파일이면 그냥 넘어간다
+        }
+      }
+      files[name] = null;
+    }),
+  );
+  // 찾아보는 동안 칩튠으로 돌고 있었다면 파일로 갈아탄다
+  if (bgm && files[bgm.name]) playBgm(bgm.name, bgm.tempoMul, true);
+}
+
+function playFile(name, tempoMul) {
+  const url = files[name];
+  if (!url || !ac) return false;
+
+  let el = elements[name];
+  if (!el) {
+    el = new Audio(url);
+    el.loop = true;
+    el.preload = 'auto';
+    try {
+      ac.createMediaElementSource(el).connect(master);
+    } catch {
+      return false; // 라우팅에 실패하면 합성으로 돌아간다
+    }
+    elements[name] = el;
+  }
+
+  el.playbackRate = tempoMul; // 스테이지가 올라갈수록 빨라지는 것도 그대로 먹는다
+  el.currentTime = 0;
+  el.play().catch(() => {});
+  playing = el;
+  return true;
+}
+
+function stopFile() {
+  if (!playing) return;
+  playing.pause();
+  playing = null;
+}
+
+export function playBgm(name, tempoMul = 1, force = false) {
+  if (!force && bgm?.name === name && bgm?.tempoMul === tempoMul) return;
   const track = TRACKS[name];
   if (!track) return;
   stopBgm();
   bgm = { name, track, tempoMul, step: 0, nextTime: 0 };
-  ensureTimer();
+
+  if (playFile(name, tempoMul)) return; // 파일이 있으면 그걸로
+  ensureTimer();                        // 없으면 칩튠 합성
 }
 
 // 소리가 아직 안 깨어났으면 예약만 걸어두고, unlock() 때 이어서 시작한다.
@@ -141,6 +209,7 @@ function ensureTimer() {
 export function stopBgm() {
   if (timer) clearInterval(timer);
   timer = null;
+  stopFile();
   bgm = null;
 }
 
