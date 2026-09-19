@@ -12,6 +12,12 @@ export function ui(size) {
   return Math.max(11, Math.min(size, viewport.cssW / 26));
 }
 
+// HUD를 화면 가장자리에서 띄우는 여백. 너무 붙어 있으면 답답하고,
+// 폰의 둥근 모서리나 노치에 걸리기도 한다.
+export function hudMargin() {
+  return Math.max(16, Math.min(32, viewport.cssW * 0.04));
+}
+
 function iconButton(ctx, x, y, size, draw) {
   ctx.save();
   ctx.fillStyle = 'rgba(255,255,255,0.8)';
@@ -93,7 +99,7 @@ function speakerIcon(ctx, cx, cy, r, muted) {
 // 작게 그리되, 누르는 영역은 손가락이 닿을 만큼 넓게 남긴다.
 export function drawIcons(ctx, { muted }) {
   const s = Math.max(24, Math.min(40, viewport.cssW * 0.05));
-  const m = 10;
+  const m = hudMargin();
   // 그림은 작아도 누르는 영역은 44px이라, 둘 사이를 그만큼 띄워야 겹치지 않는다
   const gap = Math.max(6, TOUCH - s + 2);
   const gear = { x: viewport.cssW - m - s, y: m, w: s, h: s };

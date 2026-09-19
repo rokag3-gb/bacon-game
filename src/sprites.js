@@ -105,7 +105,7 @@ export function drawBacon(ctx, px, py, s, { runPhase = 0, airborne = false, hurt
 
 // ─── 바굼 ───────────────────────────────────────────────
 // 갈색 삼각 몸통에 큰 눈 두 개, 가는 다리와 동그란 발.
-export function drawBagoom(ctx, px, py, s, { phase = 0, squashed = false } = {}) {
+export function drawBagoom(ctx, px, py, s, { phase = 0, squashed = false, look = null } = {}) {
   const u = (n) => n * s;
   const cx = px + u(25);
 
@@ -150,7 +150,9 @@ export function drawBagoom(ctx, px, py, s, { phase = 0, squashed = false } = {})
   ctx.fill();
   ctx.stroke();
 
-  // 큰 눈 두 개
+  // 큰 눈 두 개. look 을 주면 눈동자가 그쪽을 본다 — 몸은 가만히 있고 눈만.
+  const lx = look ? Math.max(-1, Math.min(1, look.x)) : 0.35;
+  const ly = look ? Math.max(-1, Math.min(1, look.y)) : 0.25;
   for (const dx of [-8, 8]) {
     ctx.fillStyle = '#FFFFFF';
     ctx.beginPath();
@@ -160,7 +162,7 @@ export function drawBagoom(ctx, px, py, s, { phase = 0, squashed = false } = {})
     ctx.stroke();
     ctx.fillStyle = INK;
     ctx.beginPath();
-    ctx.ellipse(cx + u(dx) + u(1), py + u(23), u(2.6), u(3.6), 0, 0, Math.PI * 2);
+    ctx.ellipse(cx + u(dx) + lx * u(2.4), py + u(22) + ly * u(3.2), u(2.6), u(3.6), 0, 0, Math.PI * 2);
     ctx.fill();
   }
 

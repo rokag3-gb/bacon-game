@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { createBacon, updateBacon, baconBox } from '../src/bacon.js';
-import { BACON, JUMP_APEX } from '../src/config.js';
+import { BACON, JUMP_APEX, CATCHUP_FACTOR } from '../src/config.js';
 
 const DT = 1 / 240; // 물리 검증이라 촘촘히 돌린다
 
@@ -125,6 +125,58 @@ test('막힌 상태에서 뛰어넘으면 다시 나아간다', () => {
     pressed = false;
   }
   assert.ok(b.x > obstacle.x + obstacle.w, `여전히 x=${b.x.toFixed(0)}에 갇혀 있다`);
+});
+
+// 장애물에 끼어 뒤로 밀린 뒤 뛰어넘으면, 막힘이 풀리는 순간 desiredX까지
+// 한 프레임에 순간이동하던 버그가 있었다. 제 발로 달려 따라붙어야 한다.
+test('밀린 뒤 뛰어넘어도 제자리로 순간이동하지 않는다', () => {
+  const speed = 300;
+  const obstacle = { x: 400, kind: 'bush', w: 60, h: 55 };
+  const b = createBacon(0);
+  let desired = 0;
+
+  // 점프 없이 밀어붙여 밀리게 둔다. 실제 게임에서는 화면 왼쪽 끝까지
+  // 밀리면 죽으므로, 밀리는 거리는 시야 폭(900u) 언저리를 넘지 않는다.
+  for (let i = 0; i < 480; i++) {
+    desired += speed * DT;
+    updateBacon(b, DT, { desiredX: desired, obstacles: [obstacle], pressed: false, held: false, speed });
+  }
+  assert.ok(b.blocked, '막히지 않았다');
+  const behind = desired - b.x;
+  assert.ok(behind > 200, `밀린 거리가 ${behind.toFixed(0)}u 뿐이라 검사가 무의미하다`);
+
+  // 이제 뛰어넘는다. 따라붙는 데 걸리는 시간도 재둔다.
+  let pressed = true;
+  let maxStep = 0;
+  let prev = b.x;
+  let caughtUpAt = null;
+  for (let i = 0; i < 2000; i++) {
+    desired += speed * DT;
+    updateBacon(b, DT, { desiredX: desired, obstacles: [obstacle], pressed, held: i < 120, speed });
+    pressed = false;
+    maxStep = Math.max(maxStep, b.x - prev);
+    prev = b.x;
+    if (caughtUpAt === null && desired - b.x < 1) caughtUpAt = i * DT;
+  }
+
+  const limit = speed * (1 + CATCHUP_FACTOR) * DT;
+  assert.ok(maxStep <= limit + 0.001, `한 프레임에 ${maxStep.toFixed(1)}u 이동 (한계 ${limit.toFixed(1)}u)`);
+  assert.ok(b.x > obstacle.x + obstacle.w, '장애물을 넘지 못했다');
+  assert.ok(caughtUpAt !== null, `따라잡지 못했다 — 아직 ${(desired - b.x).toFixed(0)}u 뒤`);
+  // 순간이동도 아니고 하세월도 아니어야 한다
+  assert.ok(caughtUpAt > 0.5, `${caughtUpAt.toFixed(2)}초 만에 따라잡았다 — 너무 빠르다`);
+  assert.ok(caughtUpAt < 6, `따라잡는 데 ${caughtUpAt.toFixed(1)}초나 걸렸다`);
+});
+
+test('막히지 않았을 때는 따라잡기 제한이 발목을 잡지 않는다', () => {
+  const speed = 300;
+  const b = createBacon(0);
+  let desired = 0;
+  for (let i = 0; i < 300; i++) {
+    desired += speed * DT;
+    updateBacon(b, DT, { desiredX: desired, obstacles: [], pressed: false, held: false, speed });
+  }
+  assert.ok(Math.abs(b.x - desired) < 0.001, `제자리에서 ${(desired - b.x).toFixed(2)}u 뒤처졌다`);
 });
 
 test('박스는 항상 유한한 값이다', () => {

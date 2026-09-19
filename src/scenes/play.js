@@ -7,12 +7,12 @@
 import { viewport, sx, sy, su } from '../viewport.js';
 import { drawBackground } from '../scenery.js';
 import { drawBacon, drawBagoom, drawObstacle, drawPacman } from '../sprites.js';
-import { drawHearts, drawMinimap, drawIcons, drawPopup, drawCenterText, hitZone, ui } from '../ui.js';
+import { drawHearts, drawMinimap, drawIcons, drawPopup, drawCenterText, hitZone, ui, hudMargin } from '../ui.js';
 import { consumePress, consumeMenu, input, setUiZones } from '../input.js';
 import { playBgm, stopBgm, sfx, toggleMute, isMuted } from '../audio.js';
 import { createBacon, updateBacon, baconBox } from '../bacon.js';
 import { classifyBagoomHit } from '../physics.js';
-import { buildStage, safeRespawnX } from '../stage.js';
+import { buildStage, safeRespawnX, bagoomX } from '../stage.js';
 import { stageScore, stars } from '../score.js';
 import { game } from '../game.js';
 import { state, seedFor } from '../state.js';
@@ -34,6 +34,7 @@ let menu = null;       // { selected } — 나가기 팝업
 let zones = [];
 let pacX = 0;
 let goalX = 0;
+let clock = 0;   // 씬이 시작된 뒤 흐른 시간. 바굼의 서성임을 여기에 맞춘다.
 
 const speed = () => stage.speed * tuning.speedMul;
 const jumpV0 = () => JUMP_V0 * tuning.jumpMul;
@@ -52,6 +53,7 @@ export const play = {
     invuln = 0;
     arriving = null;
     menu = null;
+    clock = 0;
     // 스테이지가 올라갈수록 배경음악도 빨라진다
     playBgm('stage', 1 + (state.stageNo - 1) * 0.07);
   },
@@ -75,6 +77,7 @@ export const play = {
     const pressed = consumePress();
     if (arriving) return updateArrival(dt);
 
+    clock += dt;
     invuln = Math.max(0, invuln - dt);
     cameraX = Math.min(cameraX + speed() * dt, cameraMax());
 
@@ -91,16 +94,14 @@ export const play = {
       pressed,
       held: input.held,
       jumpV0: jumpV0(),
+      speed: speed(),
     });
     if (pressed && wasOnGround && !bacon.onGround) sfx.jump();
 
     if (checkBagooms()) return;
 
     // 장애물에 끼어 화면 왼쪽 끝까지 밀리면 사망
-    if (bacon.x < cameraX + DEATH_MARGIN) {
-      die();
-      return;
-    }
+    if (bacon.x < cameraX + DEATH_MARGIN && squeezed()) return;
 
     if (bacon.x >= goalX - 0.5) {
       arriving = { t: 0 };
@@ -133,7 +134,14 @@ export const play = {
 
 // 눈금판과 테스트가 안을 들여다보기 위한 창. 읽기 전용으로만 쓴다.
 export function snapshot() {
-  return { stage, bacon, cameraX, invuln, arriving, defeated, speed: speed(), goalX };
+  return {
+    stage, bacon, cameraX, invuln, arriving, defeated, goalX, clock,
+    speed: speed(),
+    // 바굼은 서성이므로 지금 어디 있는지를 같이 넘긴다
+    bagoomsNow: stage.bagooms
+      .map((g, i) => ({ i, x: bagoomX(g, clock) }))
+      .filter((g) => !defeated.has(g.i)),
+  };
 }
 
 // ─── 진행 ───────────────────────────────────────────────
@@ -147,32 +155,37 @@ function checkBagooms() {
   const bb = baconBox(bacon);
   for (const [i, g] of stage.bagooms.entries()) {
     if (defeated.has(i)) continue;
-    if (Math.abs(g.x - bacon.x) > 300) continue;
-    const hit = classifyBagoomHit(bb, { x: g.x, y: -BAGOOM.h, w: BAGOOM.w, h: BAGOOM.h }, bacon.vy);
+    const gx = bagoomX(g, clock);
+    if (Math.abs(gx - bacon.x) > 300) continue;
+    const hit = classifyBagoomHit(bb, { x: gx, y: -BAGOOM.h, w: BAGOOM.w, h: BAGOOM.h }, bacon.vy);
     if (hit === 'stomp') {
       defeated.add(i);
       bacon.vy = -jumpV0() * 0.55;
       bacon.onGround = false;
       sfx.stomp();
     } else if (hit === 'hit') {
-      die();
-      return true;
+      return hurt();
     }
   }
   return false;
 }
 
-function die() {
-  if (invuln > 0) return;
+// 목숨 하나를 잃되 자리는 그대로 두는 경우. 바굼에 스쳤을 때가 이것이다.
+// 되감으면 흐름이 끊겨 부자연스럽다 — 잠깐 무적으로 깜빡이며 그냥 달린다.
+function hurt() {
+  if (invuln > 0) return false;
   state.lives -= 1;
+  if (state.lives <= 0) return gameOver();
+  sfx.hit();
+  invuln = INVULN_TIME;
+  return false;
+}
 
-  if (state.lives <= 0) {
-    // 목숨을 다 쓰면 스테이지 시작 화면으로 되돌아간다. 시드가 같아 배치는 그대로다.
-    sfx.death();
-    stopBgm();
-    game.go('stageIntro');
-    return;
-  }
+// 장애물에 끼어 화면 밖으로 밀렸을 때. 이쪽은 조금 뒤로 물러나 다시 붙는다.
+function squeezed() {
+  if (invuln > 0) return false;
+  state.lives -= 1;
+  if (state.lives <= 0) return gameOver();
 
   sfx.hit();
   const x = safeRespawnX(stage, bacon.x);
@@ -183,6 +196,15 @@ function die() {
   bacon.onGround = true;
   bacon.blocked = false;
   invuln = INVULN_TIME;
+  return false;
+}
+
+// 목숨을 다 쓰면 스테이지 시작 화면으로 되돌아간다. 시드가 같아 배치는 그대로다.
+function gameOver() {
+  sfx.death();
+  stopBgm();
+  game.go('stageIntro');
+  return true;
 }
 
 function updateArrival(dt) {
@@ -228,12 +250,21 @@ function drawEntities(ctx) {
     drawObstacle(ctx, o.kind, px, sy(-o.h), su(o.w), su(o.h), s);
   }
 
+  const baconCx = bacon.x + BACON.w / 2;
+  const baconCy = bacon.y + BACON.h / 2;
   for (const [i, g] of stage.bagooms.entries()) {
-    const px = sx(g.x, cameraX);
+    const gx = bagoomX(g, clock);
+    const px = sx(gx, cameraX);
     if (px > viewport.cssW + 40 || px + su(BAGOOM.w) < -40) continue;
+
+    // 몸은 가만히 있고 눈동자만 베이컨을 좇는다
+    const dx = baconCx - (gx + BAGOOM.w / 2);
+    const dy = baconCy - -BAGOOM.h * 0.55;
+    const len = Math.max(60, Math.hypot(dx, dy));
     drawBagoom(ctx, px, sy(-BAGOOM.h), s, {
-      phase: g.x * 0.05 + performance.now() * 0.006,
+      phase: g.phase + clock * 4,
       squashed: defeated.has(i),
+      look: { x: dx / len, y: dy / len },
     });
   }
 
@@ -274,13 +305,13 @@ function drawBaconNow(ctx, s) {
 }
 
 function drawHud(ctx) {
-  const m = 10;
+  const m = hudMargin();
   const icons = drawIcons(ctx, { muted: isMuted() });
   const iconBottom = icons[0].y + icons[0].h;
 
   const hearts = drawHearts(ctx, state.lives, m, m);
   const mapY = iconBottom + 16;
-  drawMinimap(ctx, bacon.x / stage.length, m + 14, mapY, viewport.cssW - m * 2 - 28);
+  drawMinimap(ctx, bacon.x / stage.length, m + 16, mapY, viewport.cssW - m * 2 - 32);
 
   ctx.save();
   ctx.font = `bold ${ui(14)}px system-ui, sans-serif`;

@@ -4,7 +4,7 @@
 // 화면상 자기 자리(desiredX)를 따라갈 뿐이다. 장애물 옆구리에 막히면 그 자리에
 // 붙들려 화면 왼쪽으로 밀려난다 — 기획서의 "몸이 낀다"가 이것이다.
 
-import { BACON, GRAVITY, JUMP_V0, JUMP_CUT, JUMP_MIN_HOLD } from './config.js';
+import { BACON, GRAVITY, JUMP_V0, JUMP_CUT, JUMP_MIN_HOLD, CATCHUP_FACTOR } from './config.js';
 
 export function createBacon(worldX) {
   return {
@@ -41,6 +41,7 @@ function verticallyOverlaps(b, o) {
  * @param {Array}  env.obstacles 이 근처의 장애물만 걸러서 넘겨도 된다
  * @param {boolean} env.pressed  이번 프레임에 새로 눌렸는가
  * @param {boolean} env.held     지금 누르고 있는가
+ * @param {number} [env.speed]   스크롤 속도. 밀린 뒤 따라잡는 속도를 여기서 정한다.
  * @param {number} [env.gravity]
  * @param {number} [env.jumpV0]
  */
@@ -98,8 +99,13 @@ export function updateBacon(b, dt, env) {
     b.onGround = false;
   }
 
-  // 수평 — 제자리로 따라가되 장애물 옆면에 막히면 거기서 멈춘다
-  let x = env.desiredX;
+  // 수평 — 제자리로 따라가되 장애물 옆면에 막히면 거기서 멈춘다.
+  //
+  // 따라잡는 속도에 상한을 둔다. 이게 없으면 장애물에 끼어 뒤로 밀린 뒤
+  // 뛰어넘는 순간 막힘이 풀리면서 한 프레임 만에 제자리로 순간이동한다.
+  // 스크롤보다 CATCHUP_FACTOR 만큼 더 빨리 달려 제 발로 따라붙는 모습이 된다.
+  const maxAdvance = env.speed ? env.speed * (1 + CATCHUP_FACTOR) * dt : Infinity;
+  let x = Math.min(env.desiredX, b.x + maxAdvance);
   b.blocked = false;
   for (const o of obstacles) {
     if (!verticallyOverlaps(b, o)) continue;

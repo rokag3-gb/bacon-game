@@ -16,6 +16,7 @@ import {
   OBSTACLE_GAP_FACTOR,
   BAGOOM_GAP_FACTOR,
   BAGOOM_SEPARATION_FACTOR,
+  BAGOOM_WANDER,
 } from './config.js';
 import { mulberry32, pick } from './rng.js';
 import { airDistance } from './physics.js';
@@ -81,7 +82,14 @@ function placeBagooms(rand, count, usableStart, usableEnd, obstacles, clearance,
     }
     const [lo, hi] = intervals[idx];
     const x = lo + t;
-    bagooms.push({ x, patrol: 40 + rand() * 60 });
+    bagooms.push({
+      x,
+      // 서성임: 폭과 주기, 그리고 어긋난 위상 둘
+      amp: BAGOOM_WANDER.minAmp + rand() * (BAGOOM_WANDER.maxAmp - BAGOOM_WANDER.minAmp),
+      rate: BAGOOM_WANDER.minRate + rand() * (BAGOOM_WANDER.maxRate - BAGOOM_WANDER.minRate),
+      phase: rand() * Math.PI * 2,
+      phase2: rand() * Math.PI * 2,
+    });
 
     // 쓴 자리를 구간에서 파내 바굼끼리 겹치지 않게 한다.
     // 왼쪽은 새 바굼의 오른쪽 변이 기준이므로 바굼 폭만큼 더 물러나야 한다.
@@ -120,11 +128,18 @@ export function safeRespawnX(stage, deathX, seconds = CHECKPOINT_BACK_SECONDS) {
       }
     };
     for (const o of stage.obstacles) backOff(o.x, o.w);
-    for (const g of stage.bagooms) backOff(g.x, BAGOOM.w);
+    for (const g of stage.bagooms) backOff(g.x - BAGOOM_WANDER.maxAmp, BAGOOM.w + BAGOOM_WANDER.maxAmp * 2);
     if (!moved) break;
   }
 
   return Math.max(0, x);
+}
+
+// 바굼이 지금 있는 자리. 주기가 어긋난 사인파 둘을 겹쳐 규칙적으로 보이지 않게 한다.
+// 그리기와 충돌이 같은 값을 써야 하므로 여기 한 곳에서만 계산한다.
+export function bagoomX(g, t) {
+  const wobble = Math.sin(t * g.rate + g.phase) + 0.6 * Math.sin(t * g.rate * 1.7 + g.phase2);
+  return g.x + (g.amp * wobble) / 1.6;
 }
 
 /**
@@ -139,14 +154,15 @@ export function buildStage(stageNo, seed) {
   const rand = mulberry32(seed);
   const air = airDistance(cfg.speed);
   const minGap = air * OBSTACLE_GAP_FACTOR;
-  const clearance = air * BAGOOM_GAP_FACTOR;
+  // 바굼이 서성이다 장애물에 닿거나 서로 붙지 않도록 흔들림 폭을 더해 잡는다
+  const clearance = air * BAGOOM_GAP_FACTOR + BAGOOM_WANDER.maxAmp;
 
   const usableStart = START_CLEAR;
   const usableEnd = cfg.length - END_CLEAR;
   const usableLength = usableEnd - usableStart;
 
   const obstacles = placeObstacles(rand, cfg.obstacles, usableStart, usableLength, minGap);
-  const separation = air * BAGOOM_SEPARATION_FACTOR;
+  const separation = air * BAGOOM_SEPARATION_FACTOR + BAGOOM_WANDER.maxAmp * 2;
   const bagooms = placeBagooms(rand, cfg.bagooms, usableStart, usableEnd, obstacles, clearance, separation);
 
   return {

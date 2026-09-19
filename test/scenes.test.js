@@ -196,7 +196,8 @@ function botWantsJump(snap) {
 
   const ahead = [
     ...stage.obstacles.map((o) => ({ x: o.x, w: o.w, h: o.h })),
-    ...stage.bagooms.map((g) => ({ x: g.x, w: BAGOOM_W, h: BAGOOM_H })),
+    // 바굼은 서성이므로 지금 있는 자리를 본다
+    ...snap.bagoomsNow.map((g) => ({ x: g.x, w: BAGOOM_W, h: BAGOOM_H })),
   ]
     .filter((o) => o.x > bacon.x)
     .sort((a, b) => a.x - b.x)[0];
@@ -271,6 +272,43 @@ test('팩맨에 도착하면 점수가 매겨지고 결과 화면이 그려진�
   assert.equal(game.name, 'stageResult');
 
   assert.doesNotThrow(() => run(120));
+});
+
+// 바굼에 스치면 목숨만 잃고 그 자리에서 계속 달려야 한다. 되감으면 흐름이 끊긴다.
+// 장애물은 넘고 바굼은 일부러 안 넘는 봇을 태워 바굼 충돌만 일으킨다.
+test('바굼에 닿으면 목숨만 잃고 되감기지 않는다', () => {
+  boot();
+  resetGame();
+  state.stageNo = 3;
+  state.seeds[3] = 20260926;
+  game.go('play');
+
+  let lives = state.lives;
+  let hits = 0;
+  let worstRewind = 0;
+  let prevX = play.snapshot().bacon.x;
+
+  for (let i = 0; i < 30000 && game.name === 'play'; i++) {
+    const snap = play.snapshot();
+    // 바굼은 못 본 척한다
+    const want = botWantsJump({ ...snap, bagoomsNow: [] });
+    if (want && snap.bacon.onGround) input._pressed = true;
+    input.held = !snap.bacon.onGround || want;
+    game.update(DT);
+
+    if (game.name !== 'play') break;
+    const now = play.snapshot().bacon.x;
+    if (state.lives < lives) {
+      hits++;
+      worstRewind = Math.max(worstRewind, prevX - now);
+      lives = state.lives;
+    }
+    prevX = now;
+  }
+  input.held = false;
+
+  assert.ok(hits > 0, '바굼에 한 번도 안 닿았다 — 검사가 무의미하다');
+  assert.ok(worstRewind < 5, `바굼에 닿았는데 ${worstRewind.toFixed(0)}u 되감겼다`);
 });
 
 test('씬 이름을 잘못 주면 바로 알려준다', () => {
