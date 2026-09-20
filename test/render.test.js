@@ -7,96 +7,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-const calls = [];
+import { makeCanvas, installDom, SCREENS, calls, bounds, trackBounds } from './_canvas.js';
 
-function makeCtx() {
-  const gradient = { addColorStop: () => {} };
-  const ctx = {
-    canvas: null,
-    setTransform: () => {},
-    clearRect: () => {},
-    createLinearGradient: () => gradient,
-    save: () => {},
-    restore: () => {},
-    beginPath: () => {},
-    closePath: () => {},
-    moveTo: () => {},
-    lineTo: () => {},
-    arc: () => {},
-    arcTo: () => {},
-    ellipse: () => {},
-    rect: () => {},
-    roundRect: () => {},
-    quadraticCurveTo: () => {},
-    bezierCurveTo: () => {},
-    translate: () => {},
-    rotate: () => {},
-    scale: () => {},
-    clip: () => {},
-    fill: () => {},
-    stroke: () => {},
-    fillRect: () => {},
-    strokeRect: () => {},
-    setLineDash: () => {},
-    measureText: (t) => ({ width: String(t).length * 7 }),
-    fillText: () => {},
-    strokeText: () => {},
-  };
-  // 실제로 호출된 메서드를 세고, 스텁에 없는 메서드를 부르면 바로 실패한다.
-  // 좌표에 NaN이 섞이면 브라우저는 조용히 아무것도 안 그리므로 여기서 잡는다.
-  return new Proxy(ctx, {
-    get(target, prop) {
-      if (typeof prop === 'string' && !(prop in target) && !prop.startsWith('__')) {
-        throw new Error(`가짜 컨텍스트에 없는 메서드/속성: ${String(prop)}`);
-      }
-      const v = target[prop];
-      if (typeof v === 'function') {
-        return (...args) => {
-          for (const [i, a] of args.entries()) {
-            if (typeof a === 'number' && !Number.isFinite(a)) {
-              throw new Error(`${String(prop)}()의 ${i}번째 인자가 ${a}`);
-            }
-          }
-          calls.push(prop);
-          return v(...args);
-        };
-      }
-      return v;
-    },
-    set(target, prop, value) {
-      target[prop] = value;
-      return true;
-    },
-  });
-}
-
-function makeCanvas(w, h) {
-  const ctx = makeCtx();
-  const canvas = { clientWidth: w, clientHeight: h, width: 0, height: 0, getContext: () => ctx };
-  ctx.canvas = canvas;
-  return canvas;
-}
-
-function installDom(w, h, dpr = 2) {
-  globalThis.devicePixelRatio = dpr;
-  globalThis.innerWidth = w;
-  globalThis.innerHeight = h;
-  globalThis.addEventListener = () => {};
-  globalThis.removeEventListener = () => {};
-}
+installDom(844, 390);
 
 const { attach, viewport, beginFrame, resize } = await import('../src/viewport.js');
 const { drawBackground } = await import('../src/scenery.js');
 const { SIGHT_W, MIN_VIEW_H, GROUND_FROM_BOTTOM, ACTION_BAND } = await import('../src/config.js');
-
-const SCREENS = [
-  { name: '데스크톱 가로', w: 1600, h: 900 },
-  { name: '폰 가로', w: 844, h: 390 },
-  { name: '폰 세로', w: 390, h: 844 },
-  { name: '태블릿 세로', w: 820, h: 1180 },
-  { name: '아주 납작한 창', w: 1400, h: 300 },
-  { name: '아주 좁은 창', w: 300, h: 900 },
-];
 
 test('모든 화면 비율에서 한 프레임이 예외 없이 그려진다', () => {
   for (const s of SCREENS) {
@@ -118,6 +35,47 @@ test('배경을 죽 스크롤해도 예외가 없다', () => {
   attach(makeCanvas(844, 390));
   for (let cam = 0; cam < 40000; cam += 137) {
     assert.doesNotThrow(() => drawBackground(viewport.ctx, cam), `cameraX ${cam}`);
+  }
+});
+
+// 음소거 아이콘의 음파가 버튼 밖으로 튀어나와 있었다. clip으로 가리기도 하지만
+// 애초에 도형이 네모 안에 들어와야 한다.
+test('톱니와 음소거 그림이 버튼 네모 안에 들어온다', async () => {
+  const { drawIcons } = await import('../src/ui.js');
+  for (const s of SCREENS) {
+    for (const muted of [false, true]) {
+      installDom(s.w, s.h);
+      attach(makeCanvas(s.w, s.h));
+      trackBounds();
+      const zones = drawIcons(viewport.ctx, { muted });
+      bounds.on = false;
+
+      const boxes = zones.map((z) => z.box);
+      const left = Math.min(...boxes.map((b) => b.x));
+      const right = Math.max(...boxes.map((b) => b.x + b.w));
+      const top = Math.min(...boxes.map((b) => b.y));
+      const bottom = Math.max(...boxes.map((b) => b.y + b.h));
+
+      const where = `${s.name} / ${muted ? '음소거' : '소리켜짐'}`;
+      assert.ok(bounds.any, `${where}: 아무것도 안 그렸다`);
+      assert.ok(bounds.minX >= left - 0.5, `${where}: 왼쪽으로 ${(left - bounds.minX).toFixed(1)}px 삐져나옴`);
+      assert.ok(bounds.maxX <= right + 0.5, `${where}: 오른쪽으로 ${(bounds.maxX - right).toFixed(1)}px 삐져나옴`);
+      assert.ok(bounds.minY >= top - 0.5, `${where}: 위로 ${(top - bounds.minY).toFixed(1)}px 삐져나옴`);
+      assert.ok(bounds.maxY <= bottom + 0.5, `${where}: 아래로 ${(bounds.maxY - bottom).toFixed(1)}px 삐져나옴`);
+    }
+  }
+});
+
+test('두 아이콘은 서로 겹치지 않는다', async () => {
+  const { drawIcons } = await import('../src/ui.js');
+  for (const s of SCREENS) {
+    installDom(s.w, s.h);
+    attach(makeCanvas(s.w, s.h));
+    const [gear, mute] = drawIcons(viewport.ctx, { muted: false });
+    const gapBoxes = gear.box.x - (mute.box.x + mute.box.w);
+    assert.ok(gapBoxes >= 12, `${s.name}: 그림 사이가 ${gapBoxes.toFixed(0)}px 뿐`);
+    const gapZones = gear.x - (mute.x + mute.w);
+    assert.ok(gapZones >= 0, `${s.name}: 누름 영역이 ${(-gapZones).toFixed(0)}px 겹친다`);
   }
 });
 

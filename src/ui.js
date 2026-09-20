@@ -27,6 +27,11 @@ function iconButton(ctx, x, y, size, draw) {
   ctx.roundRect(x, y, size, size, size * 0.26);
   ctx.fill();
   ctx.stroke();
+
+  // 아이콘이 버튼 밖으로 삐져나오지 않도록 잘라낸다
+  ctx.beginPath();
+  ctx.roundRect(x, y, size, size, size * 0.26);
+  ctx.clip();
   draw(ctx, x + size / 2, y + size / 2, size * 0.3);
   ctx.restore();
 }
@@ -41,6 +46,7 @@ function touchZone(box, id) {
     w: box.w + pad * 2,
     h: box.h + pad * 2,
     id,
+    box, // 그림이 실제로 차지하는 네모. 테스트가 이 안에 들어오는지 본다.
   };
 }
 
@@ -63,32 +69,39 @@ function gearIcon(ctx, cx, cy, r) {
   ctx.fill();
 }
 
+// 버튼 반쪽이 1.67r 이므로 글리프 전체가 가로 ±1.2r 안에 들어오도록 잡았다.
+// 예전에는 음파가 1.55r 까지 뻗어 버튼 밖으로 튀어나왔다.
 function speakerIcon(ctx, cx, cy, r, muted) {
+  const bx = cx - r * 0.35; // 스피커를 왼쪽으로 조금 밀어 음파 자리를 만든다
+
   ctx.fillStyle = '#12303f';
   ctx.beginPath();
-  ctx.moveTo(cx - r, cy - r * 0.45);
-  ctx.lineTo(cx - r * 0.35, cy - r * 0.45);
-  ctx.lineTo(cx + r * 0.2, cy - r * 1.05);
-  ctx.lineTo(cx + r * 0.2, cy + r * 1.05);
-  ctx.lineTo(cx - r * 0.35, cy + r * 0.45);
-  ctx.lineTo(cx - r, cy + r * 0.45);
+  ctx.moveTo(bx - r * 0.75, cy - r * 0.38);
+  ctx.lineTo(bx - r * 0.22, cy - r * 0.38);
+  ctx.lineTo(bx + r * 0.45, cy - r * 0.92);
+  ctx.lineTo(bx + r * 0.45, cy + r * 0.92);
+  ctx.lineTo(bx - r * 0.22, cy + r * 0.38);
+  ctx.lineTo(bx - r * 0.75, cy + r * 0.38);
   ctx.closePath();
   ctx.fill();
 
   ctx.strokeStyle = '#12303f';
-  ctx.lineWidth = Math.max(1.6, r * 0.26);
+  ctx.lineWidth = Math.max(1.5, r * 0.22);
   ctx.lineCap = 'round';
+
   if (muted) {
+    const mx = cx + r * 0.62;
+    const d = r * 0.4;
     ctx.beginPath();
-    ctx.moveTo(cx + r * 0.5, cy - r * 0.5);
-    ctx.lineTo(cx + r * 1.15, cy + r * 0.5);
-    ctx.moveTo(cx + r * 1.15, cy - r * 0.5);
-    ctx.lineTo(cx + r * 0.5, cy + r * 0.5);
+    ctx.moveTo(mx - d, cy - d);
+    ctx.lineTo(mx + d, cy + d);
+    ctx.moveTo(mx + d, cy - d);
+    ctx.lineTo(mx - d, cy + d);
     ctx.stroke();
   } else {
-    for (const rr of [0.55, 0.95]) {
+    for (const rr of [0.48, 0.85]) {
       ctx.beginPath();
-      ctx.arc(cx + r * 0.25, cy, r * (0.6 + rr), -0.6, 0.6);
+      ctx.arc(bx + r * 0.45, cy, r * rr, -0.62, 0.62);
       ctx.stroke();
     }
   }
@@ -101,7 +114,7 @@ export function drawIcons(ctx, { muted }) {
   const s = Math.max(24, Math.min(40, viewport.cssW * 0.05));
   const m = hudMargin();
   // 그림은 작아도 누르는 영역은 44px이라, 둘 사이를 그만큼 띄워야 겹치지 않는다
-  const gap = Math.max(6, TOUCH - s + 2);
+  const gap = Math.max(14, TOUCH - s + 10);
   const gear = { x: viewport.cssW - m - s, y: m, w: s, h: s };
   const mute = { x: viewport.cssW - m - s * 2 - gap, y: m, w: s, h: s };
 

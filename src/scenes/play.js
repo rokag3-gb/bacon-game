@@ -313,7 +313,7 @@ function drawHud(ctx) {
   const iconBottom = icons[0].y + icons[0].h;
 
   const hearts = drawHearts(ctx, state.lives, m, m);
-  const mapY = iconBottom + 16;
+  const mapY = iconBottom + Math.max(22, m * 1.1);
   drawMinimap(ctx, bacon.x / stage.length, m + 16, mapY, viewport.cssW - m * 2 - 32);
 
   ctx.save();

@@ -6,6 +6,88 @@
 
 export const calls = [];
 
+// 그린 점들의 범위를 기록한다. 아이콘이 버튼 밖으로 삐져나오는 것 같은
+// 사고는 예외가 안 나서, 좌표를 직접 봐야 잡힌다.
+export const bounds = { on: false, minX: 0, maxX: 0, minY: 0, maxY: 0, any: false };
+
+export function trackBounds() {
+  resetTransform();
+  bounds.on = true;
+  bounds.any = false;
+  bounds.minX = Infinity;
+  bounds.maxX = -Infinity;
+  bounds.minY = Infinity;
+  bounds.maxY = -Infinity;
+}
+
+// 변환 행렬 [a,b,c,d,e,f]. translate/rotate 안에서 그린 도형도 화면 좌표로
+// 옮겨 봐야 한다 — 톱니 아이콘이 그렇게 그려진다.
+let m = [1, 0, 0, 1, 0, 0];
+const stack = [];
+
+const mul = (p, q) => [
+  p[0] * q[0] + p[2] * q[1], p[1] * q[0] + p[3] * q[1],
+  p[0] * q[2] + p[2] * q[3], p[1] * q[2] + p[3] * q[3],
+  p[0] * q[4] + p[2] * q[5] + p[4], p[1] * q[4] + p[3] * q[5] + p[5],
+];
+
+function transform(op, a) {
+  if (op === 'save') stack.push(m.slice());
+  else if (op === 'restore') m = stack.pop() || [1, 0, 0, 1, 0, 0];
+  else if (op === 'translate') m = mul(m, [1, 0, 0, 1, a[0], a[1]]);
+  else if (op === 'rotate') m = mul(m, [Math.cos(a[0]), Math.sin(a[0]), -Math.sin(a[0]), Math.cos(a[0]), 0, 0]);
+  else if (op === 'scale') m = mul(m, [a[0], 0, 0, a[1], 0, 0]);
+  else if (op === 'setTransform') m = a.length >= 6 ? a.slice(0, 6) : [1, 0, 0, 1, 0, 0];
+}
+
+export function resetTransform() {
+  m = [1, 0, 0, 1, 0, 0];
+  stack.length = 0;
+}
+
+function mark(x, y) {
+  if (!bounds.on || !Number.isFinite(x) || !Number.isFinite(y)) return;
+  const sx = m[0] * x + m[2] * y + m[4];
+  const sy = m[1] * x + m[3] * y + m[5];
+  bounds.any = true;
+  bounds.minX = Math.min(bounds.minX, sx);
+  bounds.maxX = Math.max(bounds.maxX, sx);
+  bounds.minY = Math.min(bounds.minY, sy);
+  bounds.maxY = Math.max(bounds.maxY, sy);
+}
+
+// 네 귀퉁이를 다 찍어야 회전한 도형의 범위가 제대로 나온다
+function markBox(x0, y0, x1, y1) {
+  mark(x0, y0);
+  mark(x1, y0);
+  mark(x0, y1);
+  mark(x1, y1);
+}
+
+function record(op, a) {
+  transform(op, a);
+  switch (op) {
+    case 'moveTo':
+    case 'lineTo':
+      mark(a[0], a[1]);
+      break;
+    case 'arc':
+      markBox(a[0] - a[2], a[1] - a[2], a[0] + a[2], a[1] + a[2]);
+      break;
+    case 'ellipse':
+      markBox(a[0] - a[2], a[1] - a[3], a[0] + a[2], a[1] + a[3]);
+      break;
+    case 'rect':
+    case 'fillRect':
+    case 'strokeRect':
+    case 'roundRect':
+      markBox(a[0], a[1], a[0] + a[2], a[1] + a[3]);
+      break;
+    default:
+      break;
+  }
+}
+
 export function makeCtx() {
   const gradient = { addColorStop: () => {} };
   const ctx = {
@@ -54,6 +136,7 @@ export function makeCtx() {
             }
           }
           calls.push(prop);
+          record(prop, args);
           return v(...args);
         };
       }
