@@ -429,7 +429,19 @@ export function drawSign(ctx, text, centerY) {
   return { x, y, w, h };
 }
 
-export function drawCenterText(ctx, text, sub, yRatio = 0.5, alpha = 1) {
+// 글자가 maxW 를 넘으면 넘지 않을 만큼 줄인다
+function fitted(ctx, text, px, maxW, weight) {
+  if (!text) return px;
+  ctx.font = `${weight}${px}px ${FONT}`;
+  const w = ctx.measureText(text).width;
+  return w > maxW && w > 0 ? px * (maxW / w) : px;
+}
+
+// scale 로 글자를 키운다. 인트로의 PRESS ENTER 처럼 눈에 확 띄어야 하는 곳에 쓴다.
+//
+// ui() 를 쓰지 않는다. ui() 는 화면 폭을 26으로 나눈 값을 상한으로 걸어서,
+// 폰 세로에서는 제목도 본문 크기(15px)로 눌려버린다. 제목은 따로 잡는다.
+export function drawCenterText(ctx, text, sub, yRatio = 0.5, alpha = 1, scale = 1) {
   const { cssW, cssH } = viewport;
   ctx.save();
   ctx.globalAlpha = alpha;
@@ -437,7 +449,12 @@ export function drawCenterText(ctx, text, sub, yRatio = 0.5, alpha = 1) {
   ctx.textBaseline = 'middle';
   ctx.lineJoin = 'round';
 
-  const fs = ui(34);
+  const cap = viewport.cssW / 16;
+  const fs = fitted(
+    ctx, text,
+    Math.max(16, Math.min(34 * scale, cap * scale)),
+    cssW * 0.88, 'bold ',
+  );
   ctx.font = `bold ${fs}px ${FONT}`;
   ctx.strokeStyle = '#12303f';
   ctx.lineWidth = Math.max(4, fs * 0.16);
@@ -446,7 +463,11 @@ export function drawCenterText(ctx, text, sub, yRatio = 0.5, alpha = 1) {
   ctx.fillText(text, cssW / 2, cssH * yRatio);
 
   if (sub) {
-    const ss = ui(17);
+    const ss = fitted(
+      ctx, sub,
+      Math.max(12, Math.min(17 * scale, cap * 0.62 * scale)),
+      cssW * 0.88, '',
+    );
     ctx.font = `${ss}px ${FONT}`;
     ctx.lineWidth = Math.max(3, ss * 0.18);
     ctx.strokeText(sub, cssW / 2, cssH * yRatio + fs * 1.1);

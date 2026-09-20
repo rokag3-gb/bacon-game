@@ -9,7 +9,6 @@ export const COLORS = {
   sun: '#FFD836',
   sunGlow: '#FFEC8A',
   cloud: '#FFFFFF',
-  cloudLine: '#CBE4F6',
   grass: '#2E9B3F',
   grassDark: '#1F7A2E',
   stem: '#1B6B29',
@@ -55,117 +54,63 @@ function drawSun(ctx, cssW) {
   ctx.restore();
 }
 
-// 구름 네 가지. 뭉치 배치만 바꾸면 결국 다 비슷한 덩어리로 보여서,
-// 아예 알아볼 수 있는 실루엣으로 그린다. 하늘에 솜사탕과 빵과 아이스크림과
-// 침대가 떠다닌다.
+// 구름 네 가지. 하늘에 솜사탕과 식빵과 아이스크림과 침대가 떠다닌다.
+//
+// 모양 함수는 길(path)만 보태고 칠하지는 않는다. 도형마다 따로 fill() 하면
+// 반투명한 겹에서 겹친 부분이 두 번 칠해져 이음매가 드러난다. 한 길로 모아
+// 한 번만 칠하면 속이 통째로 하얗게 메워진다.
 const TAU = Math.PI * 2;
+
+// 원 하나. arc 앞에 moveTo 를 두어야 앞 도형과 선으로 이어지지 않는다.
+function blob(ctx, x, y, r) {
+  ctx.moveTo(x + r, y);
+  ctx.arc(x, y, r, 0, TAU);
+}
 
 // 솜사탕 — 막대 위에 부풀어 오른 덩어리
 function cottonCandy(ctx, x, y, s) {
-  ctx.beginPath();
   ctx.roundRect(x - s * 0.07, y + s * 0.25, s * 0.14, s * 1.15, s * 0.07);
-  ctx.fill();
-
-  ctx.beginPath();
-  ctx.arc(x - s * 0.52, y - s * 0.02, s * 0.56, 0, TAU);
-  ctx.arc(x + s * 0.52, y - s * 0.02, s * 0.56, 0, TAU);
-  ctx.arc(x, y - s * 0.48, s * 0.62, 0, TAU);
-  ctx.arc(x, y + s * 0.22, s * 0.55, 0, TAU);
-  ctx.fill();
-
-  ctx.strokeStyle = COLORS.cloudLine;
-  ctx.lineWidth = Math.max(1, s * 0.07);
-  ctx.beginPath();
-  ctx.arc(x - s * 0.18, y - s * 0.1, s * 0.3, 0.3, 2.2);
-  ctx.stroke();
+  blob(ctx, x - s * 0.52, y - s * 0.02, s * 0.56);
+  blob(ctx, x + s * 0.52, y - s * 0.02, s * 0.56);
+  blob(ctx, x, y - s * 0.5, s * 0.62);
+  blob(ctx, x, y + s * 0.2, s * 0.56);
 }
 
-// 식빵 — 네모난 몸통에 봉긋한 윗면, 그리고 칼집
+// 식빵 — 네모난 몸통에 봉긋한 윗면
 function bread(ctx, x, y, s) {
-  ctx.beginPath();
-  ctx.roundRect(x - s * 1.15, y - s * 0.2, s * 2.3, s * 0.9, s * 0.22);
-  ctx.fill();
-
-  ctx.beginPath();
-  ctx.arc(x - s * 0.44, y - s * 0.28, s * 0.62, Math.PI, 0);
-  ctx.arc(x + s * 0.5, y - s * 0.22, s * 0.52, Math.PI, 0);
-  ctx.rect(x - s * 1.1, y - s * 0.3, s * 2.2, s * 0.35);
-  ctx.fill();
-
-  ctx.strokeStyle = COLORS.cloudLine;
-  ctx.lineWidth = Math.max(1, s * 0.08);
-  ctx.beginPath();
-  ctx.moveTo(x - s * 0.85, y + s * 0.18);
-  ctx.lineTo(x + s * 0.85, y + s * 0.18);
-  ctx.stroke();
+  ctx.roundRect(x - s * 1.15, y - s * 0.2, s * 2.3, s * 0.9, s * 0.24);
+  blob(ctx, x - s * 0.46, y - s * 0.16, s * 0.64);
+  blob(ctx, x + s * 0.5, y - s * 0.08, s * 0.54);
 }
 
-// 아이스크림 — 아래로 뾰족한 콘 위에 덩어리 세 개
+// 아이스크림 — 아래로 뾰족한 콘 위에 덩어리 셋
 function iceCream(ctx, x, y, s) {
-  ctx.beginPath();
   ctx.moveTo(x - s * 0.62, y + s * 0.02);
   ctx.lineTo(x + s * 0.62, y + s * 0.02);
   ctx.lineTo(x, y + s * 1.4);
   ctx.closePath();
-  ctx.fill();
-
-  ctx.beginPath();
-  ctx.arc(x - s * 0.34, y - s * 0.18, s * 0.52, 0, TAU);
-  ctx.arc(x + s * 0.34, y - s * 0.18, s * 0.52, 0, TAU);
-  ctx.arc(x, y - s * 0.72, s * 0.5, 0, TAU);
-  ctx.fill();
-
-  // 콘의 격자무늬
-  ctx.strokeStyle = COLORS.cloudLine;
-  ctx.lineWidth = Math.max(1, s * 0.06);
-  for (const d of [-0.3, 0, 0.3]) {
-    ctx.beginPath();
-    ctx.moveTo(x + s * d - s * 0.28, y + s * 0.18);
-    ctx.lineTo(x + s * d + s * 0.1, y + s * 0.75);
-    ctx.stroke();
-  }
+  blob(ctx, x - s * 0.34, y - s * 0.18, s * 0.52);
+  blob(ctx, x + s * 0.34, y - s * 0.18, s * 0.52);
+  blob(ctx, x, y - s * 0.72, s * 0.5);
 }
 
-// 침대 — 머리판, 매트리스, 베개, 그리고 다리 넷
+// 침대 — 머리판과 발판, 매트리스, 베개, 다리 넷
 function bed(ctx, x, y, s) {
-  ctx.beginPath();
-  ctx.roundRect(x - s * 1.55, y - s * 0.8, s * 0.38, s * 1.2, s * 0.16);
-  ctx.fill();
-  ctx.beginPath();
-  ctx.roundRect(x + s * 1.2, y - s * 0.35, s * 0.34, s * 0.75, s * 0.14);
-  ctx.fill();
-
-  ctx.beginPath();
-  ctx.roundRect(x - s * 1.5, y - s * 0.12, s * 3.0, s * 0.55, s * 0.18);
-  ctx.fill();
-
-  ctx.beginPath();
-  ctx.roundRect(x - s * 1.12, y - s * 0.42, s * 0.78, s * 0.34, s * 0.15);
-  ctx.fill();
-
+  ctx.roundRect(x - s * 1.55, y - s * 0.8, s * 0.38, s * 1.22, s * 0.16);
+  ctx.roundRect(x + s * 1.2, y - s * 0.35, s * 0.34, s * 0.77, s * 0.14);
+  ctx.roundRect(x - s * 1.5, y - s * 0.12, s * 3.0, s * 0.56, s * 0.18);
+  ctx.roundRect(x - s * 1.12, y - s * 0.44, s * 0.8, s * 0.36, s * 0.16);
   for (const dx of [-1.46, -0.95, 0.95, 1.32]) {
-    ctx.beginPath();
     ctx.roundRect(x + s * dx, y + s * 0.4, s * 0.15, s * 0.38, s * 0.06);
-    ctx.fill();
   }
-
-  // 이불 자락
-  ctx.strokeStyle = COLORS.cloudLine;
-  ctx.lineWidth = Math.max(1, s * 0.07);
-  ctx.beginPath();
-  ctx.moveTo(x - s * 0.2, y - s * 0.08);
-  ctx.lineTo(x - s * 0.2, y + s * 0.4);
-  ctx.stroke();
 }
 
 const CLOUD_SHAPES = [cottonCandy, bread, iceCream, bed];
 
 function drawCloud(ctx, x, y, s, shape = 0) {
-  ctx.save();
-  ctx.fillStyle = COLORS.cloud;
-  ctx.lineCap = 'round';
+  ctx.beginPath();
   CLOUD_SHAPES[shape % CLOUD_SHAPES.length](ctx, x, y, s);
-  ctx.restore();
+  ctx.fill();
 }
 
 // 구름은 여러 겹으로 흐른다. 멀리 있는 것일수록 작고 느리고 흐릿하게,
@@ -185,6 +130,7 @@ function drawClouds(ctx, cameraX, cssW) {
   const base = Math.max(10, su(34));
 
   ctx.save();
+  ctx.fillStyle = COLORS.cloud;
 
   for (const [li, layer] of CLOUD_LAYERS.entries()) {
     const span = su(layer.span);

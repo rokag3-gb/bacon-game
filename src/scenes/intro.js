@@ -51,7 +51,7 @@ export const intro = {
 
     if (t > 2) {
       const blink = 0.55 + 0.45 * Math.sin(t * 5);
-      drawCenterText(ctx, 'PRESS ENTER', '또는 화면을 터치하세요', 0.78, blink);
+      drawCenterText(ctx, 'PRESS ENTER', '또는 화면을 터치하세요', 0.78, blink, 1.35);
     }
 
     drawCredits(ctx);
