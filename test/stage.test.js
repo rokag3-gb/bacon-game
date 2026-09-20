@@ -12,6 +12,7 @@ import {
   OBSTACLE_GAP_FACTOR,
   BAGOOM_GAP_FACTOR,
   CHECKPOINT_BACK_SECONDS,
+  SIGHT_W,
   RESPAWN_CLEARANCE,
 } from '../src/config.js';
 import { airDistance, canClear } from '../src/physics.js';
@@ -118,13 +119,43 @@ test('장애물은 x 오름차순이다', () => {
   });
 });
 
-test('스테이지가 올라갈수록 장애물이 자주 나온다', () => {
-  const density = stageNos.map((n) => {
+// 장애물 빈도는 스테이지 2쯤에서 물리적 한계에 닿아 더 오르지 못한다.
+// 최소 간격이 체공시간 × 속도 × 1.6 이라, 빠른 스테이지일수록 오히려
+// 빽빽하게 넣을 수 없기 때문이다. 그래서 난이도가 오르는지는 다른 두 가지로 본다.
+test('스테이지가 올라갈수록 피해야 할 것이 많아진다', () => {
+  let prev = 0;
+  for (const n of stageNos) {
     const s = buildStage(n, 777);
-    return s.obstacles.length / s.length;
-  });
-  for (let i = 1; i < density.length; i++) {
-    assert.ok(density[i] > density[i - 1], `스테이지 ${i + 1}의 빈도가 더 낮다`);
+    const total = s.obstacles.length + s.bagooms.length;
+    assert.ok(total > prev, `스테이지 ${n}: ${total}개로 이전(${prev}개)보다 적다`);
+    prev = total;
+  }
+});
+
+test('스테이지가 올라갈수록 반응할 시간이 짧아진다', () => {
+  let prev = Infinity;
+  for (const n of stageNos) {
+    const s = buildStage(n, 777);
+    // 장애물이 화면 오른쪽 끝에 나타나 베이컨에게 닿기까지의 시간
+    const reaction = (SIGHT_W * (1 - BACON.screenXRatio)) / s.speed;
+    assert.ok(reaction < prev, `스테이지 ${n}: 반응 시간 ${reaction.toFixed(2)}초가 이전보다 길다`);
+    prev = reaction;
+  }
+});
+
+// 빈도가 한계에 닿아 있다는 사실 자체를 못박아 둔다. 더 올리려다 배치 생성이
+// 조용히 실패하거나 바굼이 밀려나는 일을 막기 위함이다.
+test('장애물 빈도가 물리적 한계를 넘지 않는다', () => {
+  const avgWidth = 52.4;
+  for (const n of stageNos) {
+    const s = buildStage(n, 777);
+    const minGap = airDistance(s.speed) * OBSTACLE_GAP_FACTOR;
+    const usable = s.length - START_CLEAR - END_CLEAR;
+    const limit = (usable + minGap) / (avgWidth + minGap);
+    assert.ok(
+      s.obstacles.length <= limit,
+      `스테이지 ${n}: ${s.obstacles.length}개는 한계 ${limit.toFixed(0)}개를 넘는다`,
+    );
   }
 });
 

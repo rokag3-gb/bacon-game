@@ -72,12 +72,22 @@ export const OBSTACLE_KINDS = [
 // 1만 올리면 2(260)보다 빨라져 곡선이 깨지므로 다섯 개를 통째로 다시 잡았다.
 // 속도가 붙은 만큼 길이도 늘려 완주 시간을 1~2분에 맞췄고, 장애물 빈도도 올렸다.
 export const STAGES = [
-  { speed: 300, length: 21000, obstacles: 14, bagooms: 7  },
-  { speed: 325, length: 26000, obstacles: 22, bagooms: 11 },
-  { speed: 350, length: 31500, obstacles: 32, bagooms: 16 },
-  { speed: 375, length: 37000, obstacles: 42, bagooms: 21 },
-  { speed: 400, length: 42000, obstacles: 52, bagooms: 26 },
+  { speed: 300, length: 21000, obstacles: 30, bagooms: 7  },
+  { speed: 325, length: 26000, obstacles: 39, bagooms: 11 },
+  { speed: 350, length: 31500, obstacles: 44, bagooms: 16 },
+  { speed: 375, length: 37000, obstacles: 49, bagooms: 21 },
+  { speed: 400, length: 42000, obstacles: 51, bagooms: 26 },
 ];
+
+// 장애물 수는 바굼을 지키면서 넣을 수 있는 한계까지 올린 값이다.
+//
+// 빈도를 마음대로 올릴 수 없는 이유는 설정이 아니라 물리다. 장애물 사이
+// 최소 간격이 체공시간(0.83초) × 속도 × 1.6 이라, 뒤 스테이지일수록 빨라서
+// 간격을 더 벌려야 하고 결국 빽빽하게 넣을 수 있는 한계가 낮아진다.
+// 스테이지 5는 이미 그 한계에 닿아 있어 거의 못 올렸다.
+//
+// 그래서 스테이지 2 이후로는 장애물 간격이 더 좁아지지 않는다. 난이도는
+// 스크롤 속도가 올라가며 시야에 머무는 시간이 짧아지는 쪽으로 계속 오른다.
 
 export const STAGE_COUNT = STAGES.length;
 
