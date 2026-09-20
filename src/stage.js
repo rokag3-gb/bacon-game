@@ -7,8 +7,10 @@
 import {
   STAGES,
   OBSTACLE_KINDS,
+  OBSTACLE_CLUSTER,
   BACON,
   BAGOOM,
+  BAGOOM_CLUSTER,
   CHECKPOINT_BACK_SECONDS,
   RESPAWN_CLEARANCE,
   START_CLEAR,
@@ -19,85 +21,193 @@ import {
   BAGOOM_WANDER,
 } from './config.js';
 import { mulberry32, pick } from './rng.js';
-import { airDistance } from './physics.js';
+import { airDistance, timeAboveHeight } from './physics.js';
 
-// 합이 total이 되는 n개의 랜덤 양수. 장애물 사이 여유 공간을 나눠 담는 데 쓴다.
+// ─── 여유 공간 나누기 ───────────────────────────────────
+//
+// 그냥 균등 난수로 나누면 장애물이 일정한 박자로 온다 — 변동계수가 15%쯤
+// 밖에 안 돼서 사람 눈에는 규칙적으로 보인다. 대신 리듬을 만든다.
+// 촘촘한 무리 → 숨 돌릴 틈 → 평범한 간격 몇 개를 반복한다.
+function rhythmWeights(rand, n) {
+  const w = [];
+  const push = (v) => { if (w.length < n) w.push(v); };
+
+  while (w.length < n) {
+    for (let i = 0, burst = 2 + Math.floor(rand() * 3); i < burst; i++) push(0.10 + rand() * 0.25);
+    push(1.8 + rand() * 2.6);
+    for (let i = 0, calm = 1 + Math.floor(rand() * 2); i < calm; i++) push(0.7 + rand() * 0.8);
+  }
+
+  // 항상 무리로 시작하면 그것대로 규칙적이므로 시작 지점을 돌린다
+  const shift = Math.floor(rand() * n);
+  return w.map((_, i) => w[(i + shift) % n]);
+}
+
 function splitRandomly(rand, total, n) {
-  const weights = Array.from({ length: n }, () => rand() + 0.05);
+  const weights = rhythmWeights(rand, n);
   const sum = weights.reduce((a, b) => a + b, 0);
   return weights.map((w) => (w / sum) * total);
 }
 
-function placeObstacles(rand, count, usableStart, usableLength, minGap) {
-  const kinds = Array.from({ length: count }, () => pick(rand, OBSTACLE_KINDS));
+// ─── 장애물 무리 ────────────────────────────────────────
 
-  // 최소로 필요한 폭: 장애물 폭 전부 + 사이사이 최소 간격
-  const sumWidths = kinds.reduce((a, k) => a + k.w, 0);
-  const minSpan = sumWidths + (count - 1) * minGap;
-  const slack = usableLength - minSpan;
-  if (slack < 0) {
-    throw new Error(
-      `스테이지 배치 불가: 최소 ${Math.ceil(minSpan)}u 필요한데 ${usableLength}u 뿐`,
-    );
-  }
-
-  // 남는 공간을 앞 / 사이 / 뒤로 무작위 분배한다
-  const extra = splitRandomly(rand, slack, count + 1);
-
-  const obstacles = [];
-  let x = usableStart + extra[0];
-  for (let i = 0; i < count; i++) {
-    obstacles.push({ x, kind: kinds[i].kind, w: kinds[i].w, h: kinds[i].h });
-    x += kinds[i].w + minGap + extra[i + 1];
-  }
-  return obstacles;
+// 붙어 있는 무리는 한 번의 점프로 통째로 넘어야 한다. 제일 높은 놈 위에
+// 머무는 동안 무리 전체 폭 + 베이컨 폭만큼 나아갈 수 있어야 한다.
+function clusterFits(parts, width, speed) {
+  const maxH = Math.max(...parts.map((p) => p.h));
+  return timeAboveHeight(maxH) * speed > width + BACON.w + OBSTACLE_CLUSTER.margin;
 }
 
-// 장애물 사이의 빈 구간을 모아 바굼을 놓는다.
-function placeBagooms(rand, count, usableStart, usableEnd, obstacles, clearance, separation) {
-  // 장애물 좌우로 clearance만큼 물러난 구간이 바굼이 설 수 있는 자리다
+// 무리를 지을 때는 낮은 장애물을 더 자주 고른다. 안 그러면 대부분 퇴짜를 맞아
+// 무리가 거의 안 생긴다.
+function pickKind(rand, preferShort) {
+  if (!preferShort || rand() > OBSTACLE_CLUSTER.shortBias) return pick(rand, OBSTACLE_KINDS);
+  const short = OBSTACLE_KINDS.filter((o) => o.h <= 110);
+  return pick(rand, short.length ? short : OBSTACLE_KINDS);
+}
+
+function buildCluster(rand, size, speed) {
+  const parts = [];
+  let w = 0;
+  for (let i = 0; i < size; i++) {
+    const k = pickKind(rand, size > 1);
+    parts.push({ kind: k.kind, w: k.w, h: k.h, dx: w });
+    w += k.w + (i < size - 1 ? OBSTACLE_CLUSTER.gap : 0);
+  }
+  return size === 1 || clusterFits(parts, w, speed) ? { parts, w } : null;
+}
+
+// 장애물 count 개를 무리로 묶는다. 넘을 수 없는 무리는 크기를 줄여 다시 만든다.
+// 느린 스테이지에서는 체공 중 이동 거리가 짧아 큰 무리가 거의 다 퇴짜를 맞고,
+// 빠른 스테이지에서는 통과한다 — 무리 크기가 난이도를 따라 저절로 커진다.
+function makeGroups(rand, count, speed) {
+  const groups = [];
+  let left = count;
+
+  while (left > 0) {
+    const r = rand();
+    let want = 1;
+    if (left >= 3 && r < OBSTACLE_CLUSTER.tripleChance) want = 3;
+    else if (left >= 2 && r < OBSTACLE_CLUSTER.tripleChance + OBSTACLE_CLUSTER.pairChance) want = 2;
+
+    let g = null;
+    for (let size = want; size >= 1 && !g; size--) g = buildCluster(rand, size, speed);
+    groups.push(g);
+    left -= g.parts.length;
+  }
+  return groups;
+}
+
+// ─── 배치 ───────────────────────────────────────────────
+
+/**
+ * @param {object} wide  바굼이 들어갈 넓은 틈 — { count, extra }
+ *   리듬을 주면 대부분의 틈이 최소 간격에 붙어 바굼이 설 자리가 없어진다.
+ *   그래서 바굼 수만큼의 틈에 필요한 여유를 먼저 떼어 놓고, 남은 여유로만
+ *   리듬을 만든다. 넓은 틈은 스테이지 전체에 고르게 흩어 놓는다.
+ */
+function placeGroups(rand, groups, usableStart, usableLength, minGap, wide) {
+  const sumWidths = groups.reduce((a, g) => a + g.w, 0);
+  const minSpan = sumWidths + (groups.length - 1) * minGap;
+  const slack = usableLength - minSpan;
+  if (slack < 0) {
+    throw new Error(`스테이지 배치 불가: 최소 ${Math.ceil(minSpan)}u 필요한데 ${usableLength}u 뿐`);
+  }
+
+  const gaps = groups.length + 1;
+
+  // 바굼 자리부터 확보한다. 여유의 60%를 넘겨 쓰지는 않는다.
+  const reserved = new Array(gaps).fill(0);
+  let reservedTotal = 0;
+  if (wide && wide.count > 0 && wide.extra > 0) {
+    const per = Math.min(slack * 0.6, wide.count * wide.extra) / wide.count;
+    for (let i = 0; i < wide.count; i++) {
+      const base = ((i + 0.5) * gaps) / wide.count;
+      const jitter = (rand() - 0.5) * (gaps / wide.count);
+      reserved[Math.max(0, Math.min(gaps - 1, Math.floor(base + jitter)))] += per;
+    }
+    reservedTotal = reserved.reduce((a, b) => a + b, 0);
+  }
+
+  const rhythm = splitRandomly(rand, slack - reservedTotal, gaps);
+
+  const placed = [];
+  const obstacles = [];
+  let x = usableStart + rhythm[0] + reserved[0];
+  for (const [i, g] of groups.entries()) {
+    placed.push({ x, w: g.w, size: g.parts.length });
+    for (const p of g.parts) obstacles.push({ x: x + p.dx, kind: p.kind, w: p.w, h: p.h, group: i });
+    x += g.w + minGap + rhythm[i + 1] + reserved[i + 1];
+  }
+  return { obstacles, placed };
+}
+
+// 무리 사이의 빈 구간을 모아 바굼을 놓는다. 스테이지 3부터는 바굼도 가끔
+// 2~3마리씩 붙어 나온다.
+function placeBagooms(rand, count, usableStart, usableEnd, placed, clearance, separation, clusters) {
+  const widest = BAGOOM.w * 3 + BAGOOM_CLUSTER.gap * 2;
+
   let intervals = [];
   let cursor = usableStart;
-  for (const o of obstacles) {
-    const lo = cursor;
-    const hi = o.x - clearance - BAGOOM.w;
-    if (hi > lo) intervals.push([lo, hi]);
-    cursor = o.x + o.w + clearance;
+  for (const g of placed) {
+    if (g.x - clearance > cursor) intervals.push([cursor, g.x - clearance]);
+    cursor = g.x + g.w + clearance;
   }
-  if (usableEnd > cursor) intervals.push([cursor, usableEnd - BAGOOM.w]);
-  intervals = intervals.filter(([lo, hi]) => hi > lo);
+  if (usableEnd > cursor) intervals.push([cursor, usableEnd]);
 
   const bagooms = [];
-  for (let i = 0; i < count; i++) {
-    const total = intervals.reduce((a, [lo, hi]) => a + (hi - lo), 0);
-    if (total <= 0) break; // 자리가 없으면 그만. 개수 부족은 테스트가 잡는다.
+  let groupId = 0;
+  while (bagooms.length < count) {
+    const remaining = count - bagooms.length;
 
-    // 넓은 구간일수록 자주 뽑히도록 길이로 가중치를 준다
-    let t = rand() * total;
-    let idx = 0;
-    for (; idx < intervals.length; idx++) {
-      const len = intervals[idx][1] - intervals[idx][0];
-      if (t < len) break;
-      t -= len;
+    let want = 1;
+    if (clusters && remaining >= 2 && rand() < BAGOOM_CLUSTER.chance) {
+      want = remaining >= 3 && rand() < BAGOOM_CLUSTER.tripleShare ? 3 : 2;
     }
+
+    // 원하는 마리 수가 안 들어가면 줄인다
+    let size = 0;
+    let width = 0;
+    let idx = -1;
+    for (let n = want; n >= 1; n--) {
+      const w = n * BAGOOM.w + (n - 1) * BAGOOM_CLUSTER.gap;
+      const fits = intervals.filter(([lo, hi]) => hi - lo >= w);
+      if (!fits.length) continue;
+
+      // 넓은 구간일수록 자주 뽑히도록 남는 길이로 가중치를 준다
+      let t = rand() * fits.reduce((a, [lo, hi]) => a + (hi - lo - w), 0);
+      let chosen = fits[fits.length - 1];
+      for (const iv of fits) {
+        const room = iv[1] - iv[0] - w;
+        if (t < room) { chosen = iv; break; }
+        t -= room;
+      }
+      size = n;
+      width = w;
+      idx = intervals.indexOf(chosen);
+      break;
+    }
+    if (idx < 0) break; // 자리가 없으면 그만. 개수 부족은 buildStage 가 다시 뽑는다.
+
     const [lo, hi] = intervals[idx];
-    const x = lo + t;
-    bagooms.push({
-      x,
-      // 서성임: 폭과 주기, 그리고 어긋난 위상 둘
+    const x = lo + rand() * (hi - lo - width);
+
+    // 한 무리는 같은 박자로 함께 서성인다 — 따로 놀면 서로 겹친다
+    const wander = {
       amp: BAGOOM_WANDER.minAmp + rand() * (BAGOOM_WANDER.maxAmp - BAGOOM_WANDER.minAmp),
       rate: BAGOOM_WANDER.minRate + rand() * (BAGOOM_WANDER.maxRate - BAGOOM_WANDER.minRate),
       phase: rand() * Math.PI * 2,
       phase2: rand() * Math.PI * 2,
-    });
+    };
+    for (let i = 0; i < size; i++) {
+      bagooms.push({ x: x + i * (BAGOOM.w + BAGOOM_CLUSTER.gap), ...wander, cluster: size, group: groupId });
+    }
+    groupId++;
 
-    // 쓴 자리를 구간에서 파내 바굼끼리 겹치지 않게 한다.
-    // 왼쪽은 새 바굼의 오른쪽 변이 기준이므로 바굼 폭만큼 더 물러나야 한다.
-    const cutLo = x - separation - BAGOOM.w;
-    const cutHi = x + BAGOOM.w + separation;
+    // 쓴 자리를 파낸다. 왼쪽은 다음 무리가 제일 클 수 있으므로 그만큼 더 물러난다.
     const rest = [];
-    if (cutLo > lo) rest.push([lo, cutLo]);
-    if (hi > cutHi) rest.push([cutHi, hi]);
+    if (x - separation - widest > lo) rest.push([lo, x - separation - widest]);
+    if (hi > x + width + separation) rest.push([x + width + separation, hi]);
     intervals.splice(idx, 1, ...rest);
   }
 
@@ -105,8 +215,8 @@ function placeBagooms(rand, count, usableStart, usableEnd, obstacles, clearance,
   return bagooms;
 }
 
-// 죽었을 때 되돌아갈 거리. 스테이지마다 스크롤 속도가 달라도 되감기는
-// 시간이 같도록 거리가 아니라 초로 잡는다.
+// ─── 부활 ───────────────────────────────────────────────
+
 export function checkpointBack(stage, seconds = CHECKPOINT_BACK_SECONDS) {
   return stage.speed * seconds;
 }
@@ -119,7 +229,7 @@ export function checkpointBack(stage, seconds = CHECKPOINT_BACK_SECONDS) {
 export function safeRespawnX(stage, deathX, seconds = CHECKPOINT_BACK_SECONDS) {
   let x = Math.max(0, deathX - checkpointBack(stage, seconds));
 
-  for (let guard = 0; guard < 200 && x > 0; guard++) {
+  for (let guard = 0; guard < 300 && x > 0; guard++) {
     let moved = false;
     const backOff = (objX, objW) => {
       if (x + BACON.w + RESPAWN_CLEARANCE > objX && x < objX + objW + RESPAWN_CLEARANCE) {
@@ -128,7 +238,9 @@ export function safeRespawnX(stage, deathX, seconds = CHECKPOINT_BACK_SECONDS) {
       }
     };
     for (const o of stage.obstacles) backOff(o.x, o.w);
-    for (const g of stage.bagooms) backOff(g.x - BAGOOM_WANDER.maxAmp, BAGOOM.w + BAGOOM_WANDER.maxAmp * 2);
+    for (const g of stage.bagooms) {
+      backOff(g.x - BAGOOM_WANDER.maxAmp, BAGOOM.w + BAGOOM_WANDER.maxAmp * 2);
+    }
     if (!moved) break;
   }
 
@@ -142,6 +254,8 @@ export function bagoomX(g, t) {
   return g.x + (g.amp * wobble) / 1.6;
 }
 
+// ─── 스테이지 만들기 ────────────────────────────────────
+
 /**
  * 스테이지 하나의 배치를 확정한다.
  * @param {number} stageNo 1부터 시작
@@ -151,19 +265,43 @@ export function buildStage(stageNo, seed) {
   const cfg = STAGES[stageNo - 1];
   if (!cfg) throw new Error(`없는 스테이지: ${stageNo}`);
 
-  const rand = mulberry32(seed);
+  // 간격에 리듬을 주다 보면 아주 드물게 바굼이 한 마리 덜 들어간다.
+  // 그럴 때는 시드를 정해진 방식으로 비틀어 다시 뽑는다 — 같은 시드를 주면
+  // 여전히 같은 배치가 나오므로 "죽어도 배치가 같다"는 성질은 그대로다.
+  let best = null;
+  for (let attempt = 0; attempt < 10; attempt++) {
+    const stage = attemptStage(stageNo, cfg, (seed + attempt * 0x9e3779b9) >>> 0, seed);
+    if (stage.bagooms.length === cfg.bagooms && stage.obstacles.length === cfg.obstacles) return stage;
+    if (!best || stage.bagooms.length > best.bagooms.length) best = stage;
+  }
+  return best;
+}
+
+function attemptStage(stageNo, cfg, mixedSeed, seed) {
+  const rand = mulberry32(mixedSeed);
   const air = airDistance(cfg.speed);
   const minGap = air * OBSTACLE_GAP_FACTOR;
-  // 바굼이 서성이다 장애물에 닿거나 서로 붙지 않도록 흔들림 폭을 더해 잡는다
+
+  // 바굼이 서성이다 장애물에 닿지 않도록 여유에 흔들림 폭을 더해 잡는다
   const clearance = air * BAGOOM_GAP_FACTOR + BAGOOM_WANDER.maxAmp;
+  const separation = air * BAGOOM_SEPARATION_FACTOR + BAGOOM_WANDER.maxAmp * 2;
+  const clusters = stageNo >= BAGOOM_CLUSTER.fromStage;
 
   const usableStart = START_CLEAR;
   const usableEnd = cfg.length - END_CLEAR;
-  const usableLength = usableEnd - usableStart;
 
-  const obstacles = placeObstacles(rand, cfg.obstacles, usableStart, usableLength, minGap);
-  const separation = air * BAGOOM_SEPARATION_FACTOR + BAGOOM_WANDER.maxAmp * 2;
-  const bagooms = placeBagooms(rand, cfg.bagooms, usableStart, usableEnd, obstacles, clearance, separation);
+  const groups = makeGroups(rand, cfg.obstacles, cfg.speed);
+
+  // 바굼 한 무리가 서려면 이만큼의 틈이 필요하다
+  const widest = clusters ? BAGOOM.w * 3 + BAGOOM_CLUSTER.gap * 2 : BAGOOM.w;
+  const wide = { count: cfg.bagooms, extra: Math.max(0, clearance * 2 + widest - minGap) };
+
+  const { obstacles, placed } = placeGroups(
+    rand, groups, usableStart, usableEnd - usableStart, minGap, wide,
+  );
+  const bagooms = placeBagooms(
+    rand, cfg.bagooms, usableStart, usableEnd, placed, clearance, separation, clusters,
+  );
 
   return {
     stageNo,
@@ -171,6 +309,7 @@ export function buildStage(stageNo, seed) {
     speed: cfg.speed,
     length: cfg.length,
     minGap,
+    groups: placed,
     obstacles,
     bagooms,
   };

@@ -58,16 +58,35 @@ test('시작 구간과 팩맨 앞 구간은 비어 있다', () => {
   });
 });
 
-test('장애물 사이 최소 간격을 지킨다 — 깰 수 없는 구간이 없다', () => {
+// 장애물은 2~3개가 붙어 한 무리를 이루기도 한다. 최소 간격은 무리와 무리
+// 사이에 적용된다 — 무리 안은 일부러 붙여 놓은 것이다.
+test('무리 사이 최소 간격을 지킨다 — 깰 수 없는 구간이 없다', () => {
   eachStage((s, n, seed) => {
     const minGap = airDistance(s.speed) * OBSTACLE_GAP_FACTOR;
-    for (let i = 1; i < s.obstacles.length; i++) {
-      const prev = s.obstacles[i - 1];
-      const gap = s.obstacles[i].x - (prev.x + prev.w);
+    for (let i = 1; i < s.groups.length; i++) {
+      const prev = s.groups[i - 1];
+      const gap = s.groups[i].x - (prev.x + prev.w);
       assert.ok(
         gap >= minGap - 0.001,
-        `스테이지 ${n}/${seed}: ${i}번 장애물 간격 ${gap.toFixed(1)}u < ${minGap.toFixed(1)}u`,
+        `스테이지 ${n}/${seed}: ${i}번 무리 간격 ${gap.toFixed(1)}u < ${minGap.toFixed(1)}u`,
       );
+    }
+  });
+});
+
+test('무리 안의 장애물은 딱 붙어 있다', () => {
+  eachStage((s, n, seed) => {
+    const byGroup = new Map();
+    for (const o of s.obstacles) {
+      if (!byGroup.has(o.group)) byGroup.set(o.group, []);
+      byGroup.get(o.group).push(o);
+    }
+    for (const [gi, parts] of byGroup) {
+      assert.ok(parts.length <= 3, `스테이지 ${n}/${seed}: ${gi}번 무리가 ${parts.length}개`);
+      for (let i = 1; i < parts.length; i++) {
+        const gap = parts[i].x - (parts[i - 1].x + parts[i - 1].w);
+        assert.ok(gap >= 0 && gap <= 12, `스테이지 ${n}/${seed}: 무리 안 간격 ${gap.toFixed(1)}u`);
+      }
     }
   });
 });
@@ -89,24 +108,68 @@ test('바굼은 장애물에서 충분히 떨어져 있다', () => {
 
 // 바굼 둘이 붙어 있으면, 앞 바굼을 뛰어넘어 착지하는 순간 뒤 바굼에 닿아 죽는다.
 // 그래서 간격도 속도에 맞춰 늘어나야 한다.
-test('바굼끼리 한 번 뛸 거리보다 넓게 떨어져 있다', () => {
+// 바굼도 스테이지 3부터 2~3마리가 붙어 한 무리를 이룬다. 최소 간격은
+// 무리와 무리 사이에 적용된다.
+test('바굼 무리끼리 한 번 뛸 거리보다 넓게 떨어져 있다', () => {
   eachStage((s, n, seed) => {
     const sep = airDistance(s.speed) * BAGOOM_SEPARATION_FACTOR;
     for (let i = 1; i < s.bagooms.length; i++) {
-      const gap = s.bagooms[i].x - (s.bagooms[i - 1].x + BAGOOM.w);
-      assert.ok(
-        gap >= sep - 0.001,
-        `스테이지 ${n}/${seed}: 바굼 간격 ${gap.toFixed(1)}u < ${sep.toFixed(1)}u`,
-      );
-      assert.ok(gap > airDistance(s.speed), '한 번 뛸 거리보다 좁다');
+      const prev = s.bagooms[i - 1];
+      const cur = s.bagooms[i];
+      const gap = cur.x - (prev.x + BAGOOM.w);
+      if (cur.group === prev.group) {
+        assert.ok(gap >= 0 && gap <= 12, `스테이지 ${n}/${seed}: 무리 안 바굼 간격 ${gap.toFixed(1)}u`);
+      } else {
+        assert.ok(gap >= sep - 0.001, `스테이지 ${n}/${seed}: 바굼 무리 간격 ${gap.toFixed(1)}u < ${sep.toFixed(1)}u`);
+      }
     }
   });
 });
 
-test('배치된 장애물은 전부 그 스테이지 속도로 넘을 수 있다', () => {
+test('바굼 무리는 스테이지 3부터만 나온다', () => {
+  for (const n of stageNos) {
+    for (const seed of SEEDS) {
+      const s = buildStage(n, seed);
+      const sizes = new Set(s.bagooms.map((b) => b.cluster));
+      if (n < 3) assert.deepEqual([...sizes].sort(), [1], `스테이지 ${n}/${seed}: 무리가 생겼다`);
+      for (const size of sizes) assert.ok(size <= 3, `스테이지 ${n}: ${size}마리 무리`);
+    }
+  }
+});
+
+test('한 무리의 바굼은 같은 박자로 함께 서성인다', () => {
   eachStage((s, n, seed) => {
+    const byGroup = new Map();
+    for (const b of s.bagooms) {
+      if (!byGroup.has(b.group)) byGroup.set(b.group, []);
+      byGroup.get(b.group).push(b);
+    }
+    for (const parts of byGroup.values()) {
+      for (const b of parts) {
+        assert.equal(b.rate, parts[0].rate, `스테이지 ${n}/${seed}: 무리 안에서 박자가 다르다`);
+        assert.equal(b.phase, parts[0].phase);
+        assert.equal(b.amp, parts[0].amp);
+      }
+    }
+  });
+});
+
+// 붙어 있는 무리는 통째로 넘어야 한다. 제일 높은 놈 위에 머무는 동안
+// 무리 전체 폭을 지나갈 수 있어야 한다는 뜻이다.
+test('배치된 무리는 전부 한 번의 점프로 넘을 수 있다', () => {
+  eachStage((s, n, seed) => {
+    const byGroup = new Map();
     for (const o of s.obstacles) {
-      assert.ok(canClear(o.h, o.w, BACON.w, s.speed), `스테이지 ${n}/${seed}: ${o.kind}를 넘을 수 없다`);
+      if (!byGroup.has(o.group)) byGroup.set(o.group, []);
+      byGroup.get(o.group).push(o);
+    }
+    for (const [gi, parts] of byGroup) {
+      const width = Math.max(...parts.map((p) => p.x + p.w)) - Math.min(...parts.map((p) => p.x));
+      const height = Math.max(...parts.map((p) => p.h));
+      assert.ok(
+        canClear(height, width, BACON.w, s.speed),
+        `스테이지 ${n}/${seed}: ${gi}번 무리(${parts.length}개, 폭 ${width.toFixed(0)}u, 높이 ${height}u)를 넘을 수 없다`,
+      );
     }
   });
 });
