@@ -268,6 +268,65 @@ function drawButterflies(ctx, cameraX, t) {
   }
 }
 
+// 민들레 홀씨 — 바람에 실려 화면을 가로지른다. 잔디밭과 하늘 사이를 잇는다.
+const SEED_LAYERS = [
+  { span: 340, wind: 34, size: 0.75, alpha: 0.55, band: [0.55, 1.15] },
+  { span: 470, wind: 52, size: 1.0, alpha: 0.8, band: [0.2, 0.9] },
+];
+
+function drawSeed(ctx, x, y, s, spin) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(spin);
+  ctx.strokeStyle = COLORS.cloud;
+  ctx.lineWidth = Math.max(0.7, s * 0.11);
+  ctx.lineCap = 'round';
+  for (let i = 0; i < 7; i++) {
+    const a = -Math.PI / 2 + (i - 3) * 0.3;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(Math.cos(a) * s, Math.sin(a) * s);
+    ctx.stroke();
+  }
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(0, s * 0.7);
+  ctx.stroke();
+  ctx.fillStyle = 'rgba(122,96,58,0.9)';
+  ctx.beginPath();
+  ctx.arc(0, s * 0.76, s * 0.15, 0, TAU);
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawSeeds(ctx, cameraX, t) {
+  const { cssW, cssH, groundScreenY } = viewport;
+  const lawnH = cssH - groundScreenY;
+
+  for (const [li, layer] of SEED_LAYERS.entries()) {
+    const span = su(layer.span);
+    if (span <= 0) continue;
+    const drift = su(cameraX * 0.8 + t * layer.wind);
+    const first = Math.floor(drift / span) - 1;
+    const size = Math.max(4, su(13)) * layer.size;
+
+    ctx.save();
+    ctx.globalAlpha = layer.alpha;
+    for (let i = first; i * span - drift < cssW + span; i++) {
+      const h1 = hash(i * 7717 + li * 30011);
+      if (h1 > 0.5) continue;
+      const h2 = hash(i * 51203 + li * 8677);
+      const x = i * span - drift + h2 * span * 0.75;
+      if (x < -span || x > cssW + span) continue;
+      // 위아래로 하늘하늘 떠다닌다
+      const base = groundScreenY - lawnH * 0.1 + lawnH * (layer.band[0] + h1 * (layer.band[1] - layer.band[0]));
+      const y = base + su(22) * Math.sin(t * 1.3 + i * 1.9) + su(9) * Math.sin(t * 3.1 + i);
+      drawSeed(ctx, x, y, size * (0.8 + h2 * 0.5), Math.sin(t * 1.1 + i) * 0.5);
+    }
+    ctx.restore();
+  }
+}
+
 function now() {
   return (typeof performance !== 'undefined' ? performance.now() : Date.now()) / 1000;
 }
@@ -312,6 +371,7 @@ export function drawBackground(ctx, cameraX) {
 
   drawFlowers(ctx, cameraX, t);
   drawButterflies(ctx, cameraX, t);
+  drawSeeds(ctx, cameraX, t);
 }
 
 export function groundY() {

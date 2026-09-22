@@ -443,7 +443,8 @@ bacon-game/
     stage.js             buildStage(), safeRespawnX()
     score.js             점수·별 등급 계산
     sprites.js           베이컨·바굼·팩맨·장애물·하트 드로잉
-    scenery.js           하늘·해·구름·잔디·꽃
+    scenery.js           하늘·해·구름·잔디·꽃·나비·민들레 홀씨
+    dust.js              착지 먼지 (월드 좌표에 사는 입자)
     audio.js             Web Audio 합성 (효과음 + 16스텝 칩튠 루프)
     bacon.js             주인공 물리 (점프/착지/밀림)
     ui.js                하트, 미니맵, 톱니, 음소거, 팝업, 별
@@ -453,7 +454,8 @@ bacon-game/
     _canvas.js           가짜 캔버스·DOM (테스트 아님)
     physics.test.js      충돌·밟기 판정
     bacon.test.js        점프 높이·체공·착지·밀림
-    stage.test.js        배치 생성 규칙, 부활 지점
+    stage.test.js        배치 생성 규칙, 무리, 부활 지점
+    dust.test.js         착지 먼지 수명·상한·땅 아래로 안 꺼지는지
     score.test.js        점수·별 계산
     render.test.js       화면비 대응, 스프라이트 NaN 검사
     scenes.test.js       씬 전환, 봇 완주

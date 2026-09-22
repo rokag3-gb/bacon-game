@@ -11,6 +11,7 @@ import { drawHearts, drawMinimap, drawIcons, drawPopup, drawCenterText, hitZone,
 import { consumePress, consumeMenu, input, setUiZones } from '../input.js';
 import { playBgm, stopBgm, sfx, toggleMute, isMuted } from '../audio.js';
 import { createBacon, updateBacon, baconBox } from '../bacon.js';
+import { createDust, spawnDust, updateDust, drawDust } from '../dust.js';
 import { classifyBagoomHit } from '../physics.js';
 import { buildStage, safeRespawnX, bagoomX } from '../stage.js';
 import { stageScore, stars } from '../score.js';
@@ -35,6 +36,7 @@ let zones = [];
 let pacX = 0;
 let goalX = 0;
 let clock = 0;   // 씬이 시작된 뒤 흐른 시간. 바굼의 서성임을 여기에 맞춘다.
+let dust = null;
 
 const speed = () => stage.speed * tuning.speedMul;
 const jumpV0 = () => JUMP_V0 * tuning.jumpMul;
@@ -54,6 +56,7 @@ export const play = {
     arriving = null;
     menu = null;
     clock = 0;
+    dust = createDust();
     // 스테이지가 올라갈수록 빠르고 높아진다 — 같은 곡인데 조여드는 느낌이 난다
     playBgm('stage', {
       tempo: 1 + (state.stageNo - 1) * 0.06,
@@ -91,6 +94,7 @@ export const play = {
         : Math.min(bacon.x + speed() * dt, goalX);
 
     const wasOnGround = bacon.onGround;
+    const fallSpeed = bacon.vy;
     updateBacon(bacon, dt, {
       desiredX,
       obstacles: nearbyObstacles(),
@@ -100,6 +104,13 @@ export const play = {
       speed: speed(),
     });
     if (pressed && wasOnGround && !bacon.onGround) sfx.jump();
+
+    // 착지 먼지 — 높이서 떨어질수록 크게 피어오른다
+    if (!wasOnGround && bacon.onGround) {
+      const power = Math.max(0.25, Math.min(1, fallSpeed / 1000));
+      spawnDust(dust, bacon.x + BACON.w / 2, bacon.y + BACON.h, power);
+    }
+    updateDust(dust, dt);
 
     if (checkBagooms()) return;
 
@@ -166,6 +177,7 @@ function checkBagooms() {
       bacon.vy = -jumpV0() * 0.55;
       bacon.onGround = false;
       sfx.stomp();
+      spawnDust(dust, gx + BAGOOM.w / 2, -BAGOOM.h * 0.2, 0.5);
     } else if (hit === 'hit') {
       return hurt();
     }
@@ -278,6 +290,7 @@ function drawEntities(ctx) {
     });
   }
 
+  drawDust(ctx, dust, (x) => sx(x, cameraX), sy, s);
   drawBaconNow(ctx, s);
 }
 
