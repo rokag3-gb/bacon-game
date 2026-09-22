@@ -47,7 +47,7 @@ export const BAGOOM = {
 // 겹쳐 규칙적으로 보이지 않게 한다.
 export const BAGOOM_WANDER = {
   minAmp: 20, maxAmp: 45,      // 좌우로 흔들리는 폭 (u)
-  minRate: 0.25, maxRate: 0.6, // 느리게
+  minRate: 0.38, maxRate: 0.88, // 느릿하되 가만있지는 않게
 };
 
 // 밀린 뒤 제자리로 돌아오는 속도. 스크롤 속도의 이 배수만큼 더 빨리 달려 따라잡는다.

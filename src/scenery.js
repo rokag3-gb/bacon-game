@@ -116,12 +116,13 @@ function drawCloud(ctx, x, y, s, shape = 0) {
 // 구름은 여러 겹으로 흐른다. 멀리 있는 것일수록 작고 느리고 흐릿하게,
 // 가까운 것일수록 크고 빠르고 또렷하게 — 그래야 하늘에 깊이가 생긴다.
 // 자리와 크기는 월드 좌표 해시로 뽑아 스크롤해도 흔들리지 않는다.
+// span 이 좁을수록 자주 나온다. 예전 값의 0.625배 — 구름 수가 1.6배가 된다.
 const CLOUD_LAYERS = [
-  { parallax: 0.08, size: 0.55, band: [0.08, 0.34], span: 430, alpha: 0.62 },
-  { parallax: 0.16, size: 0.75, band: [0.14, 0.46], span: 520, alpha: 0.74 },
-  { parallax: 0.28, size: 1.0,  band: [0.06, 0.32], span: 640, alpha: 0.86 },
-  { parallax: 0.44, size: 1.35, band: [0.22, 0.58], span: 780, alpha: 0.95 },
-  { parallax: 0.62, size: 1.7,  band: [0.04, 0.26], span: 980, alpha: 1.0  },
+  { parallax: 0.08, size: 0.55, band: [0.08, 0.34], span: 269, alpha: 0.62 },
+  { parallax: 0.16, size: 0.75, band: [0.14, 0.46], span: 325, alpha: 0.74 },
+  { parallax: 0.28, size: 1.0,  band: [0.06, 0.32], span: 400, alpha: 0.86 },
+  { parallax: 0.44, size: 1.35, band: [0.22, 0.58], span: 488, alpha: 0.95 },
+  { parallax: 0.62, size: 1.7,  band: [0.04, 0.26], span: 613, alpha: 1.0  },
 ];
 
 function drawClouds(ctx, cameraX, cssW) {
@@ -155,15 +156,15 @@ function drawClouds(ctx, cameraX, cssW) {
   ctx.restore();
 }
 
-function drawFlower(ctx, x, baseY, size, color) {
+function drawFlower(ctx, x, baseY, size, color, sway = 0) {
   const stemH = size * 1.5;
   const headY = baseY - stemH;
 
   ctx.strokeStyle = COLORS.stem;
   ctx.lineWidth = Math.max(1, size * 0.14);
   ctx.beginPath();
-  ctx.moveTo(x, baseY);
-  ctx.lineTo(x, headY);
+  ctx.moveTo(x - sway, baseY);
+  ctx.quadraticCurveTo(x - sway * 0.3, baseY - stemH * 0.5, x, headY);
   ctx.stroke();
 
   // 잎 두 장
@@ -190,12 +191,13 @@ function drawFlower(ctx, x, baseY, size, color) {
 // 잔디밭 위에 꽃을 흩뿌린다. 아래쪽 줄일수록 크고 조금 빨리 흘러
 // 앞에 있는 것처럼 보이게 했다. 지면선 아래에만 두므로 장애물과
 // 헷갈릴 일이 없다.
-function drawFlowers(ctx, cameraX) {
+function drawFlowers(ctx, cameraX, t) {
   const { cssW, cssH, groundScreenY } = viewport;
   const lawnH = cssH - groundScreenY;
   if (lawnH <= 0) return;
 
-  const rows = Math.max(1, Math.min(4, Math.round(lawnH / viewport.scale / 90)));
+  // 가로 화면은 잔디밭이 100u 남짓이라 예전 기준으로는 한 줄뿐이었다
+  const rows = Math.max(2, Math.min(5, Math.round(lawnH / viewport.scale / 60)));
   const slot = su(150);
   if (slot <= 0) return;
 
@@ -213,9 +215,61 @@ function drawFlowers(ctx, cameraX) {
       const h2 = hash(i * 31337 + row * 2654435761);
       const x = i * slot - su(drift) + h2 * slot * 0.8;
       if (x < -slot || x > cssW + slot) continue;
-      drawFlower(ctx, x, baseY, size * (0.85 + h2 * 0.3), FLOWERS[Math.floor(h1 * 10) % FLOWERS.length]);
+      // 꽃도 바람에 같이 흔들린다
+      const sway = size * 0.16 * Math.sin(t * 1.6 + i * 1.7 + row);
+      drawFlower(ctx, x + sway, baseY, size * (0.85 + h2 * 0.3), FLOWERS[Math.floor(h1 * 10) % FLOWERS.length], sway);
     }
   }
+}
+
+// 나비 — 잔디밭 위를 하늘하늘 날아다닌다. 잔디밭이 심심하지 않게 하는 장치.
+const BUTTERFLY = ['#FFF3B0', '#FFB3D1', '#FFD59E', '#CDE9FF'];
+
+function drawButterfly(ctx, x, y, s, flap, color) {
+  const w = s * (0.45 + 0.55 * Math.abs(Math.sin(flap))); // 날갯짓
+  ctx.save();
+  ctx.fillStyle = color;
+  ctx.strokeStyle = 'rgba(40,30,20,0.55)';
+  ctx.lineWidth = Math.max(0.8, s * 0.09);
+  for (const dir of [-1, 1]) {
+    ctx.beginPath();
+    ctx.ellipse(x + dir * w * 0.6, y - s * 0.12, w * 0.62, s * 0.5, dir * 0.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+  }
+  ctx.fillStyle = '#3B2B1A';
+  ctx.beginPath();
+  ctx.ellipse(x, y, s * 0.16, s * 0.42, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawButterflies(ctx, cameraX, t) {
+  const { cssW, cssH, groundScreenY } = viewport;
+  const lawnH = cssH - groundScreenY;
+  if (lawnH <= 0) return;
+
+  const span = su(620);
+  if (span <= 0) return;
+  const drift = su(cameraX * 0.5 - t * 26); // 스크롤보다 느리게, 앞으로 살살 난다
+  const first = Math.floor(drift / span) - 1;
+  const size = Math.max(5, su(17));
+
+  for (let i = first; i * span - drift < cssW + span; i++) {
+    const h1 = hash(i * 12227);
+    if (h1 > 0.55) continue;
+    const h2 = hash(i * 35759);
+    const x = i * span - drift + h2 * span * 0.7;
+    if (x < -span || x > cssW + span) continue;
+    // 위아래로 하늘하늘
+    const y = groundScreenY - su(10) + lawnH * (0.1 + h1 * 0.5)
+      + su(16) * Math.sin(t * 2.3 + i) + su(7) * Math.sin(t * 5.1 + i * 2.3);
+    drawButterfly(ctx, x, y, size * (0.8 + h2 * 0.5), t * 11 + i, BUTTERFLY[Math.floor(h1 * 8) % BUTTERFLY.length]);
+  }
+}
+
+function now() {
+  return (typeof performance !== 'undefined' ? performance.now() : Date.now()) / 1000;
 }
 
 export function drawBackground(ctx, cameraX) {
@@ -238,23 +292,26 @@ export function drawBackground(ctx, cameraX) {
   ctx.fillStyle = COLORS.grassDark;
   ctx.fillRect(0, groundScreenY, cssW, Math.max(2, su(6)));
 
-  // 흘러가는 풀포기. 스크롤이 눈에 보이게 하는 유일한 단서다.
+  // 흘러가는 풀포기. 바람에 살랑이게 해서 잔디밭이 살아 있게 보이게 한다.
+  const t = now();
   const tuft = su(90);
   const off = cameraX % 90;
   ctx.strokeStyle = COLORS.grassDark;
   ctx.lineWidth = Math.max(1.5, su(3));
   ctx.lineCap = 'round';
-  for (let x = -su(off); x < cssW + tuft; x += tuft) {
+  for (let i = 0, x = -su(off); x < cssW + tuft; i++, x += tuft) {
     const base = groundScreenY + su(16);
+    const sway = su(4) * Math.sin(t * 1.9 + (cameraX + i * 90) * 0.02);
     ctx.beginPath();
     ctx.moveTo(x, base);
-    ctx.lineTo(x - su(5), base - su(11));
+    ctx.lineTo(x - su(5) + sway, base - su(11));
     ctx.moveTo(x, base);
-    ctx.lineTo(x + su(4), base - su(13));
+    ctx.lineTo(x + su(4) + sway * 1.3, base - su(13));
     ctx.stroke();
   }
 
-  drawFlowers(ctx, cameraX);
+  drawFlowers(ctx, cameraX, t);
+  drawButterflies(ctx, cameraX, t);
 }
 
 export function groundY() {

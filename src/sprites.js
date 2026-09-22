@@ -4,6 +4,40 @@
 // 박스의 왼쪽 위 화면 좌표(px)와 scale(px/u)을 받아 그 안에 맞춰 그린다.
 
 const INK = '#1A1A1A';
+const TAU = Math.PI * 2;
+
+// 원 하나를 길에 보탠다. arc 앞에 moveTo 가 없으면 앞 도형과 선으로 이어진다.
+function blob(ctx, x, y, r) {
+  ctx.moveTo(x + r, y);
+  ctx.arc(x, y, r, 0, TAU);
+}
+
+// 겹친 도형을 먹선 하나로 감싼다.
+//
+// 도형마다 stroke 하면 안쪽 선까지 다 보여 어떻게 그렸는지 드러난다.
+// 먼저 두 배 굵기로 긋고 그 위를 채우면, 안쪽 선은 덮이고 바깥 윤곽만 남는다.
+function inkedFill(ctx, build, fill, s, width = 2.2) {
+  ctx.save();
+  build();
+  ctx.strokeStyle = INK;
+  ctx.lineJoin = 'round';
+  ctx.lineWidth = Math.max(2, s * width * 2);
+  ctx.stroke();
+  ctx.fillStyle = fill;
+  ctx.fill();
+  ctx.restore();
+}
+
+// 가로로 어둠 → 밝음 → 어둠. 납작한 면을 원통처럼 보이게 한다.
+function cylinder(ctx, x0, x1, dark, mid, light) {
+  const g = ctx.createLinearGradient(x0, 0, x1, 0);
+  g.addColorStop(0, dark);
+  g.addColorStop(0.2, light);
+  g.addColorStop(0.52, mid);
+  g.addColorStop(0.86, dark);
+  g.addColorStop(1, dark);
+  return g;
+}
 
 function outline(ctx, s) {
   ctx.strokeStyle = INK;
@@ -181,16 +215,29 @@ export function drawBagoom(ctx, px, py, s, { phase = 0, squashed = false, look =
 
 // ─── 장애물 ─────────────────────────────────────────────
 const OBSTACLE_PAINTERS = {
-  // 초록 덤불
+  // 초록 덤불 — 뭉치 여럿을 먹선 하나로 감싼다
   bush(ctx, px, py, w, h, s) {
-    ctx.fillStyle = '#2E8B3A';
+    const build = () => {
+      ctx.beginPath();
+      blob(ctx, px + w * 0.22, py + h * 0.56, h * 0.44);
+      blob(ctx, px + w * 0.5, py + h * 0.34, h * 0.5);
+      blob(ctx, px + w * 0.78, py + h * 0.52, h * 0.46);
+      ctx.rect(px, py + h * 0.48, w, h * 0.52);
+    };
+    inkedFill(ctx, build, '#2E8B3A', s);
+
+    ctx.save();
+    build();
+    ctx.clip();
+    // 위쪽에 볕, 아래쪽에 그늘
+    ctx.fillStyle = 'rgba(255,255,255,0.22)';
     ctx.beginPath();
-    ctx.arc(px + w * 0.27, py + h * 0.52, h * 0.48, 0, Math.PI * 2);
-    ctx.arc(px + w * 0.58, py + h * 0.38, h * 0.52, 0, Math.PI * 2);
-    ctx.arc(px + w * 0.82, py + h * 0.58, h * 0.42, 0, Math.PI * 2);
-    ctx.rect(px, py + h * 0.5, w, h * 0.5);
+    blob(ctx, px + w * 0.46, py + h * 0.26, h * 0.3);
+    blob(ctx, px + w * 0.2, py + h * 0.46, h * 0.2);
     ctx.fill();
-    ctx.stroke();
+    ctx.fillStyle = 'rgba(0,0,0,0.16)';
+    ctx.fillRect(px, py + h * 0.78, w, h * 0.22);
+    ctx.restore();
   },
 
   // 벽돌 기둥
@@ -216,38 +263,43 @@ const OBSTACLE_PAINTERS = {
     }
   },
 
-  // 토관 — 마리오식 초록 관. 입구 테두리가 몸통보다 넓다.
+  // 토관 — 원통 몸통에 넓은 입구 테두리. 가로 그러데이션으로 둥글게 보인다.
   pipe(ctx, px, py, w, h, s) {
-    const lip = h * 0.2;
-    const inset = w * 0.1;
+    const lipH = h * 0.2;
+    const over = w * 0.09;          // 테두리가 몸통보다 이만큼 넓다
+    const bx = px + over;
+    const bw = w - over * 2;
+    const r = w * 0.07;
+
+    ctx.save();
+    ctx.strokeStyle = INK;
+    ctx.lineWidth = Math.max(2, s * 2.2);
+    ctx.lineJoin = 'round';
 
     // 몸통
-    ctx.fillStyle = '#2FA83C';
+    ctx.fillStyle = cylinder(ctx, bx, bx + bw, '#166B21', '#2FA83C', '#86DE90');
     ctx.beginPath();
-    ctx.rect(px + inset, py + lip, w - inset * 2, h - lip);
+    ctx.rect(bx, py + lipH * 0.7, bw, h - lipH * 0.7);
     ctx.fill();
     ctx.stroke();
 
-    // 몸통 하이라이트와 그늘로 둥근 느낌
-    ctx.fillStyle = 'rgba(255,255,255,0.28)';
-    ctx.fillRect(px + inset + w * 0.08, py + lip, w * 0.16, h - lip);
-    ctx.fillStyle = 'rgba(0,0,0,0.18)';
-    ctx.fillRect(px + w - inset - w * 0.2, py + lip, w * 0.2, h - lip);
-
-    // 입구 테두리 — 밟고 서기 좋게 평평하다
-    ctx.fillStyle = '#35BF45';
+    // 입구 테두리
+    ctx.fillStyle = cylinder(ctx, px, px + w, '#12601C', '#35BF45', '#9BE9A4');
     ctx.beginPath();
-    ctx.rect(px, py, w, lip);
+    ctx.roundRect(px, py, w, lipH, r);
     ctx.fill();
     ctx.stroke();
-    ctx.fillStyle = 'rgba(255,255,255,0.3)';
-    ctx.fillRect(px + w * 0.08, py + lip * 0.18, w * 0.14, lip * 0.64);
 
-    // 관 속 어둠
-    ctx.fillStyle = 'rgba(0,0,0,0.42)';
+    // 관 속 어둠 — 테두리 윗면에 파인 타원
+    ctx.fillStyle = '#0E3315';
     ctx.beginPath();
-    ctx.ellipse(px + w / 2, py + lip * 0.3, w * 0.34, lip * 0.2, 0, 0, Math.PI * 2);
+    ctx.ellipse(px + w / 2, py + lipH * 0.32, w * 0.3, lipH * 0.24, 0, 0, TAU);
     ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.45)';
+    ctx.lineWidth = Math.max(1, s * 1.2);
+    ctx.stroke();
+
+    ctx.restore();
   },
 
   // 주황 지붕을 인 갈색 기둥 — 아이 그림 background.jpg 에 있는 그것
