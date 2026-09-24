@@ -1,7 +1,7 @@
 // 인트로 — 배경이 흘러가고, 2초 뒤부터 PRESS ENTER 가 깜빡인다.
 
 import { viewport, sy, su } from '../viewport.js';
-import { drawBackground } from '../scenery.js';
+import { drawSky, drawGround } from '../scenery.js';
 import { drawBacon, drawPacman } from '../sprites.js';
 import { drawIcons, drawCenterText, drawSign, drawCredits, hitZone } from '../ui.js';
 import { consumePress, setUiZones } from '../input.js';
@@ -40,12 +40,16 @@ export const intro = {
   },
 
   render(ctx) {
-    drawBackground(ctx, cameraX);
-
-    // 제자리에서 달리는 베이컨과, 저 멀리 기다리는 팩맨
     const s = viewport.scale;
-    drawBacon(ctx, viewport.cssW * 0.22, sy(-BACON.h), s, { runPhase: t * 14 });
+
+    // 팩맨은 잔디밭보다 뒤에 있다. 하늘을 먼저 깔고, 팩맨을 놓고, 그 위에
+    // 잔디밭과 꽃을 덮어야 순서가 맞는다.
+    drawSky(ctx, cameraX, { cloudDensity: 1.7 });
     drawPacman(ctx, viewport.cssW * 0.72, sy(-140), su(140), s, { chomp: t * 6 });
+    drawGround(ctx, cameraX);
+
+    // 제자리에서 달리는 베이컨
+    drawBacon(ctx, viewport.cssW * 0.22, sy(-BACON.h), s, { runPhase: t * 14 });
 
     drawSign(ctx, '베이컨 먹방', viewport.cssH * 0.26);
 

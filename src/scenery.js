@@ -125,7 +125,7 @@ const CLOUD_LAYERS = [
   { parallax: 0.62, size: 1.7,  band: [0.04, 0.26], span: 613, alpha: 1.0  },
 ];
 
-function drawClouds(ctx, cameraX, cssW) {
+function drawClouds(ctx, cameraX, cssW, density) {
   const sky = viewport.groundScreenY;
   if (sky <= 0) return;
   const base = Math.max(10, su(34));
@@ -134,7 +134,7 @@ function drawClouds(ctx, cameraX, cssW) {
   ctx.fillStyle = COLORS.cloud;
 
   for (const [li, layer] of CLOUD_LAYERS.entries()) {
-    const span = su(layer.span);
+    const span = su(layer.span / density);
     if (span <= 0) continue;
     const drift = su(cameraX * layer.parallax);
     const first = Math.floor(drift / span) - 1;
@@ -331,8 +331,9 @@ function now() {
   return (typeof performance !== 'undefined' ? performance.now() : Date.now()) / 1000;
 }
 
-export function drawBackground(ctx, cameraX) {
-  const { cssW, cssH, groundScreenY } = viewport;
+// 하늘만 — 배경보다 뒤에 둘 것(예: 인트로의 팩맨)이 있을 때 따로 부른다
+export function drawSky(ctx, cameraX, { cloudDensity = 1 } = {}) {
+  const { cssW, groundScreenY } = viewport;
 
   const sky = ctx.createLinearGradient(0, 0, 0, groundScreenY);
   sky.addColorStop(0, COLORS.skyTop);
@@ -341,9 +342,13 @@ export function drawBackground(ctx, cameraX) {
   ctx.fillRect(0, 0, cssW, groundScreenY);
 
   drawSun(ctx, cssW);
-  drawClouds(ctx, cameraX, cssW);
+  drawClouds(ctx, cameraX, cssW, cloudDensity);
+}
 
-  // 잔디밭
+// 잔디밭과 그 위에 사는 것들. 하늘 뒤에 둔 것보다 앞에 그려진다.
+export function drawGround(ctx, cameraX) {
+  const { cssW, cssH, groundScreenY } = viewport;
+
   ctx.fillStyle = COLORS.grass;
   ctx.fillRect(0, groundScreenY, cssW, cssH - groundScreenY);
 
@@ -372,6 +377,11 @@ export function drawBackground(ctx, cameraX) {
   drawFlowers(ctx, cameraX, t);
   drawButterflies(ctx, cameraX, t);
   drawSeeds(ctx, cameraX, t);
+}
+
+export function drawBackground(ctx, cameraX, opts) {
+  drawSky(ctx, cameraX, opts);
+  drawGround(ctx, cameraX);
 }
 
 export function groundY() {

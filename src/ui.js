@@ -354,27 +354,65 @@ export function drawCredits(ctx) {
 }
 
 // 나무 간판에 새긴 타이틀. 공원이 배경이라 나무 간판이 어울린다.
+// 오래 서 있던 티가 나도록 초록 이끼를 군데군데 앉혔다.
+const MOSS = [
+  [0.04, 0.10, 0.20, 0.30], [0.10, 0.74, 0.16, 0.26], [0.29, 0.02, 0.14, 0.16],
+  [0.55, 0.84, 0.22, 0.18], [0.78, 0.06, 0.18, 0.24], [0.93, 0.52, 0.12, 0.34],
+  [0.42, 0.90, 0.12, 0.12], [0.67, 0.00, 0.10, 0.12],
+];
+
+function drawMoss(ctx, x, y, w, h) {
+  for (const [fx, fy, fw, fh] of MOSS) {
+    const mx = x + w * fx;
+    const my = y + h * fy;
+    const mw = w * fw;
+    const mh = h * fh;
+
+    ctx.fillStyle = '#4E7C30';
+    ctx.beginPath();
+    ctx.ellipse(mx, my, mw * 0.5, mh * 0.5, 0, 0, Math.PI * 2);
+    ctx.ellipse(mx + mw * 0.26, my + mh * 0.18, mw * 0.34, mh * 0.36, 0, 0, Math.PI * 2);
+    ctx.ellipse(mx - mw * 0.24, my + mh * 0.12, mw * 0.3, mh * 0.32, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#7BA84E';
+    ctx.beginPath();
+    ctx.ellipse(mx - mw * 0.1, my - mh * 0.14, mw * 0.26, mh * 0.24, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
 export function drawSign(ctx, text, centerY) {
   const { cssW } = viewport;
-  const fs = Math.max(26, Math.min(cssW * 0.125, 76));
+  let fs = Math.max(30, Math.min(cssW * 0.15, 92));
 
   ctx.save();
   ctx.font = `bold ${fs}px ${FONT}`;
-  const textW = ctx.measureText(text).width;
-  const w = Math.min(cssW * 0.9, textW + fs * 1.7);
-  const h = fs * 1.95;
+  let textW = ctx.measureText(text).width;
+  const w = Math.min(cssW * 0.92, textW + fs * 1.9);
+
+  // 판자를 넘치면 글자를 줄인다
+  const inner = w - fs * 1.1;
+  if (textW > inner) {
+    fs *= inner / textW;
+    ctx.font = `bold ${fs}px ${FONT}`;
+    textW = ctx.measureText(text).width;
+  }
+
+  const h = fs * 2.2;
   const x = (cssW - w) / 2;
   const y = centerY - h / 2;
+  const r = fs * 0.18;
 
   // 기둥 두 개 — 판자 뒤에서 아래로 뻗는다
-  const postW = Math.max(8, fs * 0.22);
-  ctx.fillStyle = '#6B4420';
+  const postW = Math.max(10, fs * 0.24);
   ctx.strokeStyle = INK;
-  ctx.lineWidth = Math.max(2.5, fs * 0.05);
+  ctx.lineWidth = Math.max(3, fs * 0.055);
   ctx.lineJoin = 'round';
-  for (const px of [x + w * 0.22, x + w * 0.78 - postW]) {
+  ctx.fillStyle = '#6B4420';
+  for (const px of [x + w * 0.2, x + w * 0.8 - postW]) {
     ctx.beginPath();
-    ctx.rect(px, y + h * 0.4, postW, h * 1.5);
+    ctx.rect(px, y + h * 0.45, postW, h * 1.5);
     ctx.fill();
     ctx.stroke();
   }
@@ -382,21 +420,22 @@ export function drawSign(ctx, text, centerY) {
   // 그림자 — 스티커처럼 도톰하게
   ctx.fillStyle = 'rgba(26,26,26,0.45)';
   ctx.beginPath();
-  ctx.roundRect(x + fs * 0.1, y + fs * 0.1, w, h, fs * 0.16);
+  ctx.roundRect(x + fs * 0.11, y + fs * 0.11, w, h, r);
   ctx.fill();
 
   // 판자
   ctx.fillStyle = '#A5702F';
   ctx.beginPath();
-  ctx.roundRect(x, y, w, h, fs * 0.16);
+  ctx.roundRect(x, y, w, h, r);
   ctx.fill();
   ctx.stroke();
 
-  // 나뭇결
   ctx.save();
   ctx.beginPath();
-  ctx.roundRect(x, y, w, h, fs * 0.16);
+  ctx.roundRect(x, y, w, h, r);
   ctx.clip();
+
+  // 나뭇결
   ctx.strokeStyle = 'rgba(90,55,20,0.4)';
   ctx.lineWidth = Math.max(1.5, fs * 0.035);
   for (let i = 1; i < 5; i++) {
@@ -406,20 +445,22 @@ export function drawSign(ctx, text, centerY) {
     ctx.bezierCurveTo(x + w * 0.3, gy - h * 0.05, x + w * 0.7, gy + h * 0.05, x + w, gy);
     ctx.stroke();
   }
+
+  drawMoss(ctx, x, y, w, h);
   ctx.restore();
 
   // 네 귀퉁이 못
   ctx.fillStyle = '#5A3714';
-  for (const [bx, by] of [[0.055, 0.2], [0.945, 0.2], [0.055, 0.8], [0.945, 0.8]]) {
+  for (const [bx, by] of [[0.05, 0.19], [0.95, 0.19], [0.05, 0.81], [0.95, 0.81]]) {
     ctx.beginPath();
-    ctx.arc(x + w * bx, y + h * by, Math.max(2.5, fs * 0.07), 0, Math.PI * 2);
+    ctx.arc(x + w * bx, y + h * by, Math.max(3, fs * 0.075), 0, Math.PI * 2);
     ctx.fill();
   }
 
   // 글씨
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.lineWidth = Math.max(4, fs * 0.15);
+  ctx.lineWidth = Math.max(5, fs * 0.16);
   ctx.strokeStyle = INK;
   ctx.strokeText(text, x + w / 2, y + h / 2 + fs * 0.04);
   ctx.fillStyle = '#FBF6EE';
