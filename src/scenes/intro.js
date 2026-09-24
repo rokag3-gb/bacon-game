@@ -42,14 +42,12 @@ export const intro = {
   render(ctx) {
     const s = viewport.scale;
 
-    // 팩맨은 잔디밭보다 뒤에 있다. 하늘을 먼저 깔고, 팩맨을 놓고, 그 위에
-    // 잔디밭과 꽃을 덮어야 순서가 맞는다.
+    // 잔디밭은 전경이다. 하늘 → 팩맨과 베이컨 → 잔디밭 순으로 덮어야
+    // 꽃과 나비가 앞에 온다.
     drawSky(ctx, cameraX, { cloudDensity: 1.7 });
     drawPacman(ctx, viewport.cssW * 0.72, sy(-140), su(140), s, { chomp: t * 6 });
-    drawGround(ctx, cameraX);
-
-    // 제자리에서 달리는 베이컨
     drawBacon(ctx, viewport.cssW * 0.22, sy(-BACON.h), s, { runPhase: t * 14 });
+    drawGround(ctx, cameraX);
 
     drawSign(ctx, '베이컨 먹방', viewport.cssH * 0.26);
 

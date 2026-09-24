@@ -5,7 +5,7 @@
 // 제 발로 팩맨에게 달려간다.
 
 import { viewport, sx, sy, su } from '../viewport.js';
-import { drawBackground } from '../scenery.js';
+import { drawSky, drawGround } from '../scenery.js';
 import { drawBacon, drawBagoom, drawObstacle, drawPacman } from '../sprites.js';
 import { drawHearts, drawMinimap, drawIcons, drawPopup, drawCenterText, hitZone, ui, hudMargin } from '../ui.js';
 import { consumePress, consumeMenu, input, setUiZones } from '../input.js';
@@ -139,8 +139,11 @@ export const play = {
   },
 
   render(ctx) {
-    drawBackground(ctx, cameraX);
+    // 잔디밭은 플레이 평면보다 앞에 있는 전경이다. 꽃·나비·홀씨가 베이컨과
+    // 장애물, 팩맨보다 앞에 와야 원근이 맞는다.
+    drawSky(ctx, cameraX);
     drawEntities(ctx);
+    drawGround(ctx, cameraX);
     drawHud(ctx);
     if (tuning.show) drawTuning(ctx);
   },

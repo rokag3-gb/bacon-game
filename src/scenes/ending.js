@@ -1,7 +1,7 @@
 // 최종 엔딩 — 다섯 스테이지를 다 지난 뒤.
 
 import { viewport, sy, su } from '../viewport.js';
-import { drawBackground } from '../scenery.js';
+import { drawSky, drawGround } from '../scenery.js';
 import { drawPacman, drawBacon } from '../sprites.js';
 import { drawStars, drawCenterText, drawIcons, drawCredits, hitZone, ui } from '../ui.js';
 import { consumePress, setUiZones } from '../input.js';
@@ -46,12 +46,13 @@ export const ending = {
   },
 
   render(ctx) {
-    drawBackground(ctx, cameraX);
-
     const s = viewport.scale;
     const bob = Math.sin(t * 3) * su(6);
+
+    drawSky(ctx, cameraX);
     drawPacman(ctx, viewport.cssW * 0.58, sy(-150) + bob, su(150), s, { chomp: t * 5 });
     drawBacon(ctx, viewport.cssW * 0.34, sy(-BACON.h), s, { runPhase: t * 10 });
+    drawGround(ctx, cameraX);
 
     drawCenterText(ctx, '축하합니다!', `${STAGE_COUNT}개 스테이지를 모두 지났습니다`, 0.16);
 
