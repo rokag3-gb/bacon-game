@@ -221,7 +221,7 @@ function squeezed() {
 function gameOver() {
   sfx.death();
   stopBgm();
-  game.go('stageIntro');
+  game.go('stageIntro', { restarted: true });
   return true;
 }
 

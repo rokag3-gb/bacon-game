@@ -50,6 +50,7 @@ export const stageResult = {
     const starR = ui(19);
     const popup = drawPopup(ctx, {
       title: `스테이지 ${result.stageNo} 클리어!`,
+      textScale: 1.25,
       topSpace: starR * 2.8, // 별을 얹을 자리
       rows: [
         [`바굼 처치  ${result.bagoomsDefeated} × 100`, num(result.bagoom)],

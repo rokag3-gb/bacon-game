@@ -205,11 +205,16 @@ function chunkyBox(ctx, x, y, w, h, r, fill, lift = 5) {
 
 export function drawPopup(ctx, {
   title, lines = [], rows = [], footer = [], items = [], selected = 0,
-  accent = '#2FA83C', topSpace = 0,
+  accent = '#2FA83C', topSpace = 0, textScale = 1,
 }) {
   const { cssW, cssH } = viewport;
-  const fs = ui(20);
-  const small = ui(15);
+
+  // ui() 를 쓰면 화면 폭 ÷ 26 이 상한이라, 폰에서는 제목과 본문이 같은
+  // 15px로 눌려 구분이 안 된다. 팝업 글자는 따로 잡는다.
+  const cap = cssW / 18;
+  const fs = Math.max(14, Math.min(20 * textScale, cap * textScale));
+  const small = Math.max(11, Math.min(15 * textScale, cap * 0.76 * textScale));
+  const itemFs = Math.max(13, Math.min(17 * textScale, cap * 0.85 * textScale));
   const pad = fs * 1.1;
   const headH = fs * 2.2;
   const itemH = Math.max(TOUCH, fs * 2.2);
@@ -314,7 +319,7 @@ export function drawPopup(ctx, {
       chunkyBox(ctx, x + pad, iy, w - pad * 2, itemH, 12, on ? accent : PAPER, on ? 4 : 2);
 
       ctx.textAlign = 'center';
-      ctx.font = `bold ${ui(17)}px ${FONT}`;
+      ctx.font = `bold ${itemFs}px ${FONT}`;
       if (on) {
         ctx.strokeStyle = INK;
         ctx.lineWidth = Math.max(3, fs * 0.15);

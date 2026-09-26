@@ -70,6 +70,19 @@ test('엔터를 누르면 인트로 → 스테이지 시작 → 플레이로 넘
   assert.equal(game.name, 'play', '스테이지 시작 화면에서 안 넘어갔다');
 });
 
+// 목숨을 다 써서 돌아온 경우와 그냥 들어온 경우 둘 다 그려져야 한다
+test('스테이지 시작 화면이 두 경우 모두 그려진다', () => {
+  for (const s of SCREENS) {
+    for (const restarted of [false, true]) {
+      boot(s.w, s.h);
+      resetGame();
+      state.stageNo = 3;
+      game.go('stageIntro', restarted ? { restarted: true } : undefined);
+      assert.doesNotThrow(() => run(90), `${s.name} / ${restarted ? '목숨 소진' : '첫 진입'}`);
+    }
+  }
+});
+
 test('스테이지에 들어갈 때마다 목숨이 3개로 복구된다', () => {
   boot();
   resetGame();
