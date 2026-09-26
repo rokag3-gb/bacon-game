@@ -72,12 +72,14 @@ export const OBSTACLE_KINDS = [
 // 스테이지 1이 굼떠서 예전 스테이지 3의 속도(300)부터 시작하도록 곡선을 올렸다.
 // 1만 올리면 2(260)보다 빨라져 곡선이 깨지므로 다섯 개를 통째로 다시 잡았다.
 // 속도가 붙은 만큼 길이도 늘려 완주 시간을 1~2분에 맞췄고, 장애물 빈도도 올렸다.
+// 속도는 일정하게 오르지 않는다. 증가폭 자체가 커지는 J 커브 —
+// n log n 을 따라간 모양이다 (+26, +30, +35, +41).
 export const STAGES = [
   { speed: 300, length: 21000, obstacles: 30, bagooms: 7  },
-  { speed: 325, length: 26000, obstacles: 39, bagooms: 11 },
-  { speed: 350, length: 31500, obstacles: 44, bagooms: 16 },
-  { speed: 375, length: 37000, obstacles: 49, bagooms: 21 },
-  { speed: 400, length: 42000, obstacles: 51, bagooms: 26 },
+  { speed: 326, length: 26000, obstacles: 39, bagooms: 11 },
+  { speed: 356, length: 31500, obstacles: 44, bagooms: 16 },
+  { speed: 391, length: 37000, obstacles: 49, bagooms: 21 },
+  { speed: 432, length: 42000, obstacles: 51, bagooms: 26 },
 ];
 
 // 장애물 수는 바굼을 지키면서 넣을 수 있는 한계까지 올린 값이다.
@@ -95,7 +97,16 @@ export const STAGE_COUNT = STAGES.length;
 // 배치 규칙
 export const START_CLEAR = 1500;      // 스테이지 시작 후 비워두는 구간
 export const END_CLEAR = 800;         // 팩맨 앞 비워두는 구간
-export const OBSTACLE_GAP_FACTOR = 1.6;  // 장애물 사이 최소 간격 = 체공거리 × 이 값
+// 무리 사이 최소 간격 = 체공거리 × 이 값.
+//
+// "일정한 간격"을 만들려는 규칙이 아니다 — 간격은 rhythmWeights 가 들쭉날쭉하게
+// 흩뿌린다. 이건 물리적 바닥이다. 이보다 좁으면 착지하자마자 다음 장애물이
+// 몸에 닿아 어떻게 해도 못 넘는 구간이 된다.
+//
+// 1.6 은 넉넉한 안전 마진이었다. 1.2 로 낮춰 훨씬 조이는 구간이 나올 수 있게
+// 했다 — 착지 후 다음 점프까지 체공시간의 20%(약 0.17초)가 남는다.
+// 더 붙어야 하는 조합은 아예 한 무리로 묶어 한 번에 넘게 한다.
+export const OBSTACLE_GAP_FACTOR = 1.2;
 export const BAGOOM_GAP_FACTOR = 0.8;    // 바굼과 장애물 사이 최소 간격
 
 // 장애물이 가끔 2~3개씩 붙어 나온다. 게임은 예외가 있어야 재미있다.
@@ -110,6 +121,26 @@ export const OBSTACLE_CLUSTER = {
   margin: 25,        // 넘을 수 있는지 볼 때 남겨두는 여유
   shortBias: 0.75,   // 무리를 지을 때 낮은 장애물을 고를 확률
 };
+
+// 바굼이 장애물 위에 올라앉기도 한다. 서성이다 가장자리를 넘으면 떨어져
+// 그때부터 잔디밭에서 걷는다.
+//
+// 높은 장애물 위에 올리면 둘을 합친 높이를 한 번에 넘어야 해서 빡빡해진다.
+// 침엽수(135u) + 바굼(50u) = 185u 는 느린 스테이지에서 여유가 3u 밖에 안 남는다.
+// 그래서 낮은 것(덤불·벽돌) 위에만 올린다.
+export const BAGOOM_PERCH = {
+  fromStage: 2,
+  share: 0.28,      // 바굼 중 이만큼이 장애물 위에서 시작한다
+  maxHeight: 110,
+  fallGravity: 1800, // 베이컨보다 가볍게 떨어진다
+  // 장애물 위 바굼은 더 넓게 서성인다. 보통 폭(최대 45u)으로는 장애물
+  // 폭(45~60u)을 못 벗어나 영영 안 떨어진다.
+  minAmp: 58,
+  maxAmp: 95,
+};
+
+// 스테이지가 올라갈수록 바굼이 조금씩 부지런해진다
+export const BAGOOM_WANDER_PER_STAGE = 0.09;
 
 // 바굼도 스테이지 3부터 가끔 2~3마리씩 붙어 나온다
 export const BAGOOM_CLUSTER = {

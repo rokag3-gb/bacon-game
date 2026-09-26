@@ -13,7 +13,8 @@ import { playBgm, stopBgm, sfx, toggleMute, isMuted } from '../audio.js';
 import { createBacon, updateBacon, baconBox } from '../bacon.js';
 import { createDust, spawnDust, updateDust, drawDust } from '../dust.js';
 import { classifyBagoomHit } from '../physics.js';
-import { buildStage, safeRespawnX, bagoomX } from '../stage.js';
+import { buildStage, safeRespawnX } from '../stage.js';
+import { createBagoomStates, updateBagooms, bagoomBox } from '../bagoom.js';
 import { stageScore, stars } from '../score.js';
 import { game } from '../game.js';
 import { state, seedFor } from '../state.js';
@@ -37,6 +38,7 @@ let pacX = 0;
 let goalX = 0;
 let clock = 0;   // 씬이 시작된 뒤 흐른 시간. 바굼의 서성임을 여기에 맞춘다.
 let dust = null;
+let bagooms = null;   // 바굼의 실시간 위치 (서성임 + 낙하)
 
 const speed = () => stage.speed * tuning.speedMul;
 const jumpV0 = () => JUMP_V0 * tuning.jumpMul;
@@ -57,6 +59,7 @@ export const play = {
     menu = null;
     clock = 0;
     dust = createDust();
+    bagooms = createBagoomStates(stage);
     // 스테이지가 올라갈수록 빠르고 높아진다 — 같은 곡인데 조여드는 느낌이 난다
     playBgm('stage', {
       tempo: 1 + (state.stageNo - 1) * 0.06,
@@ -85,6 +88,7 @@ export const play = {
 
     clock += dt;
     invuln = Math.max(0, invuln - dt);
+    updateBagooms(stage, bagooms, clock, dt, nearbyObstacles(), defeated);
     cameraX = Math.min(cameraX + speed() * dt, cameraMax());
 
     // 카메라가 끝에 닿으면 베이컨이 제 발로 팩맨까지 달려간다
@@ -154,9 +158,9 @@ export function snapshot() {
   return {
     stage, bacon, cameraX, invuln, arriving, defeated, goalX, clock,
     speed: speed(),
-    // 바굼은 서성이므로 지금 어디 있는지를 같이 넘긴다
+    // 바굼은 서성이고 떨어지기도 하므로 지금 자리를 같이 넘긴다
     bagoomsNow: stage.bagooms
-      .map((g, i) => ({ i, x: bagoomX(g, clock) }))
+      .map((g, i) => ({ i, x: bagooms[i].x, y: bagooms[i].y, top: -bagooms[i].y }))
       .filter((g) => !defeated.has(g.i)),
   };
 }
@@ -170,17 +174,17 @@ function nearbyObstacles() {
 
 function checkBagooms() {
   const bb = baconBox(bacon);
-  for (const [i, g] of stage.bagooms.entries()) {
+  for (const [i] of stage.bagooms.entries()) {
     if (defeated.has(i)) continue;
-    const gx = bagoomX(g, clock);
-    if (Math.abs(gx - bacon.x) > 300) continue;
-    const hit = classifyBagoomHit(bb, { x: gx, y: -BAGOOM.h, w: BAGOOM.w, h: BAGOOM.h }, bacon.vy);
+    const box = bagoomBox(bagooms, i);
+    if (Math.abs(box.x - bacon.x) > 300) continue;
+    const hit = classifyBagoomHit(bb, box, bacon.vy);
     if (hit === 'stomp') {
       defeated.add(i);
       bacon.vy = -jumpV0() * 0.55;
       bacon.onGround = false;
       sfx.stomp();
-      spawnDust(dust, gx + BAGOOM.w / 2, -BAGOOM.h * 0.2, 0.5);
+      spawnDust(dust, box.x + BAGOOM.w / 2, box.y + BAGOOM.h * 0.8, 0.5);
     } else if (hit === 'hit') {
       return hurt();
     }
@@ -271,15 +275,15 @@ function drawEntities(ctx) {
   const baconCx = bacon.x + BACON.w / 2;
   const baconCy = bacon.y + BACON.h / 2;
   for (const [i, g] of stage.bagooms.entries()) {
-    const gx = bagoomX(g, clock);
-    const px = sx(gx, cameraX);
+    const st = bagooms[i];
+    const px = sx(st.x, cameraX);
     if (px > viewport.cssW + 40 || px + su(BAGOOM.w) < -40) continue;
 
     // 몸은 가만히 있고 눈동자만 베이컨을 좇는다
-    const dx = baconCx - (gx + BAGOOM.w / 2);
-    const dy = baconCy - -BAGOOM.h * 0.55;
+    const dx = baconCx - (st.x + BAGOOM.w / 2);
+    const dy = baconCy - (st.y + BAGOOM.h * 0.45);
     const len = Math.max(60, Math.hypot(dx, dy));
-    drawBagoom(ctx, px, sy(-BAGOOM.h), s, {
+    drawBagoom(ctx, px, sy(st.y), s, {
       phase: g.phase + clock * 4,
       squashed: defeated.has(i),
       look: { x: dx / len, y: dy / len },

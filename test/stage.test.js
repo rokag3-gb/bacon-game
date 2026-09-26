@@ -13,6 +13,7 @@ import {
   BAGOOM_GAP_FACTOR,
   CHECKPOINT_BACK_SECONDS,
   SIGHT_W,
+  BAGOOM_PERCH,
   RESPAWN_CLEARANCE,
 } from '../src/config.js';
 import { airDistance, canClear } from '../src/physics.js';
@@ -91,10 +92,12 @@ test('무리 안의 장애물은 딱 붙어 있다', () => {
   });
 });
 
-test('바굼은 장애물에서 충분히 떨어져 있다', () => {
+// 장애물 위에 올라앉은 바굼은 이 규칙에서 빠진다 — 일부러 그 위에 둔 것이다
+test('잔디밭 바굼은 장애물에서 충분히 떨어져 있다', () => {
   eachStage((s, n, seed) => {
     const clearance = airDistance(s.speed) * BAGOOM_GAP_FACTOR;
     for (const b of s.bagooms) {
+      if (b.perch) continue;
       for (const o of s.obstacles) {
         const gap = b.x > o.x ? b.x - (o.x + o.w) : o.x - (b.x + BAGOOM.w);
         assert.ok(
@@ -110,12 +113,13 @@ test('바굼은 장애물에서 충분히 떨어져 있다', () => {
 // 그래서 간격도 속도에 맞춰 늘어나야 한다.
 // 바굼도 스테이지 3부터 2~3마리가 붙어 한 무리를 이룬다. 최소 간격은
 // 무리와 무리 사이에 적용된다.
-test('바굼 무리끼리 한 번 뛸 거리보다 넓게 떨어져 있다', () => {
+test('잔디밭 바굼 무리끼리 한 번 뛸 거리보다 넓게 떨어져 있다', () => {
   eachStage((s, n, seed) => {
     const sep = airDistance(s.speed) * BAGOOM_SEPARATION_FACTOR;
-    for (let i = 1; i < s.bagooms.length; i++) {
-      const prev = s.bagooms[i - 1];
-      const cur = s.bagooms[i];
+    const lawn = s.bagooms.filter((b) => !b.perch);
+    for (let i = 1; i < lawn.length; i++) {
+      const prev = lawn[i - 1];
+      const cur = lawn[i];
       const gap = cur.x - (prev.x + BAGOOM.w);
       if (cur.group === prev.group) {
         assert.ok(gap >= 0 && gap <= 12, `스테이지 ${n}/${seed}: 무리 안 바굼 간격 ${gap.toFixed(1)}u`);
@@ -124,6 +128,90 @@ test('바굼 무리끼리 한 번 뛸 거리보다 넓게 떨어져 있다', () 
       }
     }
   });
+});
+
+// ─── 장애물 위의 바굼 ───────────────────────────────────
+
+test('바굼 일부만 장애물 위에서 시작한다 — 전부는 아니다', () => {
+  for (const n of stageNos) {
+    let perch = 0;
+    let total = 0;
+    for (const seed of SEEDS) {
+      const s = buildStage(n, seed);
+      for (const b of s.bagooms) {
+        total++;
+        if (b.perch) perch++;
+      }
+    }
+    const share = perch / total;
+    if (n < BAGOOM_PERCH.fromStage) {
+      assert.equal(perch, 0, `스테이지 ${n}: 아직 나오면 안 된다`);
+    } else {
+      assert.ok(share > 0.1, `스테이지 ${n}: ${(share * 100).toFixed(0)}% 뿐`);
+      assert.ok(share < 0.45, `스테이지 ${n}: ${(share * 100).toFixed(0)}% — 너무 많다`);
+    }
+  }
+});
+
+test('장애물 위 바굼은 그 장애물 꼭대기에 정확히 서 있다', () => {
+  eachStage((s, n, seed) => {
+    for (const b of s.bagooms) {
+      if (!b.perch) continue;
+      const under = s.obstacles.find((o) => b.x + BAGOOM.w > o.x && b.x < o.x + o.w);
+      assert.ok(under, `스테이지 ${n}/${seed}: 밑에 장애물이 없다`);
+      assert.ok(
+        Math.abs(b.startY + BAGOOM.h - -under.h) < 0.001,
+        `스테이지 ${n}/${seed}: 꼭대기(${-under.h})가 아니라 ${(b.startY + BAGOOM.h).toFixed(1)}에 있다`,
+      );
+    }
+  });
+});
+
+// 높은 장애물 위에 올리면 둘을 합친 높이를 한 번에 넘어야 해서 넘을 수 없어진다
+test('장애물 위 바굼은 낮고 홀로 선 장애물에만 올라간다', () => {
+  eachStage((s, n, seed) => {
+    const size = new Map();
+    for (const o of s.obstacles) size.set(o.group, (size.get(o.group) || 0) + 1);
+    for (const b of s.bagooms) {
+      if (!b.perch) continue;
+      const under = s.obstacles.find((o) => b.x + BAGOOM.w > o.x && b.x < o.x + o.w);
+      assert.ok(under.h <= BAGOOM_PERCH.maxHeight, `스테이지 ${n}/${seed}: ${under.kind}(${under.h}u) 위에 있다`);
+      assert.equal(size.get(under.group), 1, `스테이지 ${n}/${seed}: 무리 위에 올라갔다`);
+    }
+  });
+});
+
+test('잔디밭 바굼은 지면에서 시작한다', () => {
+  eachStage((s) => {
+    for (const b of s.bagooms) {
+      if (b.perch) continue;
+      assert.equal(b.startY, -BAGOOM.h);
+    }
+  });
+});
+
+// 서성임 주기는 바굼마다 난수로 뽑은 뒤 스테이지 배율을 곱한다. 한 스테이지에
+// 7~26마리뿐이라 시드 하나로 평균 내면 난수 편차가 9% 증가분을 덮는다.
+test('스테이지가 올라갈수록 바굼이 부지런해진다', () => {
+  const averages = stageNos.map((n) => {
+    let sum = 0;
+    let count = 0;
+    for (let seed = 1; seed <= 120; seed++) {
+      for (const b of buildStage(n, seed).bagooms) {
+        sum += b.rate;
+        count++;
+      }
+    }
+    return sum / count;
+  });
+
+  for (let i = 1; i < averages.length; i++) {
+    assert.ok(
+      averages[i] > averages[i - 1] * 1.04,
+      `스테이지 ${i + 1}: 평균 ${averages[i].toFixed(3)} (이전 ${averages[i - 1].toFixed(3)})`,
+    );
+  }
+  assert.ok(averages[4] / averages[0] > 1.25, `1→5 배율이 ${(averages[4] / averages[0]).toFixed(2)}배 뿐`);
 });
 
 test('바굼 무리는 스테이지 3부터만 나온다', () => {

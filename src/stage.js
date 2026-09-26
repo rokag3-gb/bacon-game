@@ -11,6 +11,8 @@ import {
   BACON,
   BAGOOM,
   BAGOOM_CLUSTER,
+  BAGOOM_PERCH,
+  BAGOOM_WANDER_PER_STAGE,
   CHECKPOINT_BACK_SECONDS,
   RESPAWN_CLEARANCE,
   START_CLEAR,
@@ -144,7 +146,38 @@ function placeGroups(rand, groups, usableStart, usableLength, minGap, wide) {
 
 // 무리 사이의 빈 구간을 모아 바굼을 놓는다. 스테이지 3부터는 바굼도 가끔
 // 2~3마리씩 붙어 나온다.
-function placeBagooms(rand, count, usableStart, usableEnd, placed, clearance, separation, clusters) {
+function wanderOf(rand, mul, range = BAGOOM_WANDER) {
+  return {
+    amp: range.minAmp + rand() * (range.maxAmp - range.minAmp),
+    rate: (BAGOOM_WANDER.minRate + rand() * (BAGOOM_WANDER.maxRate - BAGOOM_WANDER.minRate)) * mul,
+    phase: rand() * Math.PI * 2,
+    phase2: rand() * Math.PI * 2,
+  };
+}
+
+// 바굼 몇 마리를 낮은 장애물 위에 올려 놓는다. 전부가 아니라 일부만이다.
+// 서성이다 가장자리를 넘으면 떨어져 그때부터 잔디밭에서 걷는다.
+function perchBagooms(rand, want, obstacles, groupSizes, mul) {
+  if (want <= 0) return [];
+  const eligible = obstacles.filter(
+    (o) => o.h <= BAGOOM_PERCH.maxHeight && groupSizes[o.group] === 1,
+  );
+  const perched = [];
+  for (let i = 0; i < want && eligible.length; i++) {
+    const [o] = eligible.splice(Math.floor(rand() * eligible.length), 1);
+    perched.push({
+      x: o.x + (o.w - BAGOOM.w) / 2,
+      startY: -o.h - BAGOOM.h,
+      perch: true,
+      cluster: 1,
+      group: -1 - i,
+      ...wanderOf(rand, mul, BAGOOM_PERCH),
+    });
+  }
+  return perched;
+}
+
+function placeBagooms(rand, count, usableStart, usableEnd, placed, clearance, separation, clusters, mul) {
   const widest = BAGOOM.w * 3 + BAGOOM_CLUSTER.gap * 2;
 
   let intervals = [];
@@ -193,14 +226,16 @@ function placeBagooms(rand, count, usableStart, usableEnd, placed, clearance, se
     const x = lo + rand() * (hi - lo - width);
 
     // 한 무리는 같은 박자로 함께 서성인다 — 따로 놀면 서로 겹친다
-    const wander = {
-      amp: BAGOOM_WANDER.minAmp + rand() * (BAGOOM_WANDER.maxAmp - BAGOOM_WANDER.minAmp),
-      rate: BAGOOM_WANDER.minRate + rand() * (BAGOOM_WANDER.maxRate - BAGOOM_WANDER.minRate),
-      phase: rand() * Math.PI * 2,
-      phase2: rand() * Math.PI * 2,
-    };
+    const wander = wanderOf(rand, mul);
     for (let i = 0; i < size; i++) {
-      bagooms.push({ x: x + i * (BAGOOM.w + BAGOOM_CLUSTER.gap), ...wander, cluster: size, group: groupId });
+      bagooms.push({
+        x: x + i * (BAGOOM.w + BAGOOM_CLUSTER.gap),
+        startY: -BAGOOM.h,
+        perch: false,
+        ...wander,
+        cluster: size,
+        group: groupId,
+      });
     }
     groupId++;
 
@@ -294,14 +329,27 @@ function attemptStage(stageNo, cfg, mixedSeed, seed) {
 
   // 바굼 한 무리가 서려면 이만큼의 틈이 필요하다
   const widest = clusters ? BAGOOM.w * 3 + BAGOOM_CLUSTER.gap * 2 : BAGOOM.w;
-  const wide = { count: cfg.bagooms, extra: Math.max(0, clearance * 2 + widest - minGap) };
+  const lawnCount = cfg.bagooms - (stageNo >= BAGOOM_PERCH.fromStage
+    ? Math.round(cfg.bagooms * BAGOOM_PERCH.share) : 0);
+  const wide = { count: lawnCount, extra: Math.max(0, clearance * 2 + widest - minGap) };
 
   const { obstacles, placed } = placeGroups(
     rand, groups, usableStart, usableEnd - usableStart, minGap, wide,
   );
-  const bagooms = placeBagooms(
-    rand, cfg.bagooms, usableStart, usableEnd, placed, clearance, separation, clusters,
+
+  // 일부는 낮은 장애물 위에서 시작한다. 나머지는 잔디밭에.
+  const wanderMul = 1 + (stageNo - 1) * BAGOOM_WANDER_PER_STAGE;
+  const perchWant = stageNo >= BAGOOM_PERCH.fromStage
+    ? Math.round(cfg.bagooms * BAGOOM_PERCH.share)
+    : 0;
+  const groupSizes = placed.map((g) => g.size);
+  const perched = perchBagooms(rand, perchWant, obstacles, groupSizes, wanderMul);
+
+  const onLawn = placeBagooms(
+    rand, cfg.bagooms - perched.length, usableStart, usableEnd,
+    placed, clearance, separation, clusters, wanderMul,
   );
+  const bagooms = [...perched, ...onLawn].sort((a, b) => a.x - b.x);
 
   return {
     stageNo,
