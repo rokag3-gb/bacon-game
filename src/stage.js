@@ -34,13 +34,27 @@ function rhythmWeights(rand, n) {
   const w = [];
   const push = (v) => { if (w.length < n) w.push(v); };
 
+  // 구간마다 성격을 새로 뽑는다. 예전에는 무리 → 틈 → 평범 순서가 늘 반복돼,
+  // 간격 값은 들쭉날쭉해도 리듬이 규칙적으로 읽혔다.
   while (w.length < n) {
-    for (let i = 0, burst = 2 + Math.floor(rand() * 3); i < burst; i++) push(0.10 + rand() * 0.25);
-    push(1.8 + rand() * 2.6);
-    for (let i = 0, calm = 1 + Math.floor(rand() * 2); i < calm; i++) push(0.7 + rand() * 0.8);
+    const mood = rand();
+
+    if (mood < 0.30) {
+      // 빽빽 — 4~10개가 최소 간격에 딱 붙어 몰아친다
+      for (let i = 0, len = 4 + Math.floor(rand() * 7); i < len; i++) push(0.05 + rand() * 0.16);
+    } else if (mood < 0.50) {
+      // 텅 빔 — 한두 번 크게 벌어져 숨을 돌린다
+      for (let i = 0, len = 1 + Math.floor(rand() * 2); i < len; i++) push(2.5 + rand() * 5.5);
+    } else if (mood < 0.80) {
+      // 뒤죽박죽 — 좁았다 넓었다 아무렇게나. rand()*rand() 라 좁은 쪽이 더 잦다
+      for (let i = 0, len = 2 + Math.floor(rand() * 5); i < len; i++) push(0.06 + rand() * rand() * 4.5);
+    } else {
+      // 평범
+      for (let i = 0, len = 1 + Math.floor(rand() * 4); i < len; i++) push(0.55 + rand() * 1.2);
+    }
   }
 
-  // 항상 무리로 시작하면 그것대로 규칙적이므로 시작 지점을 돌린다
+  // 항상 같은 성격으로 시작하지 않도록 시작 지점을 돌린다
   const shift = Math.floor(rand() * n);
   return w.map((_, i) => w[(i + shift) % n]);
 }
@@ -62,17 +76,18 @@ function clusterFits(parts, width, speed) {
 
 // 무리를 지을 때는 낮은 장애물을 더 자주 고른다. 안 그러면 대부분 퇴짜를 맞아
 // 무리가 거의 안 생긴다.
-function pickKind(rand, preferShort) {
+function pickKind(rand, preferShort, theme) {
+  if (theme) return theme;
   if (!preferShort || rand() > OBSTACLE_CLUSTER.shortBias) return pick(rand, OBSTACLE_KINDS);
   const short = OBSTACLE_KINDS.filter((o) => o.h <= 110);
   return pick(rand, short.length ? short : OBSTACLE_KINDS);
 }
 
-function buildCluster(rand, size, speed) {
+function buildCluster(rand, size, speed, theme) {
   const parts = [];
   let w = 0;
   for (let i = 0; i < size; i++) {
-    const k = pickKind(rand, size > 1);
+    const k = pickKind(rand, size > 1, theme);
     parts.push({ kind: k.kind, w: k.w, h: k.h, dx: w });
     w += k.w + (i < size - 1 ? OBSTACLE_CLUSTER.gap : 0);
   }
@@ -85,15 +100,25 @@ function buildCluster(rand, size, speed) {
 function makeGroups(rand, count, speed) {
   const groups = [];
   let left = count;
+  let theme = null;
+  let themeLeft = 0;
 
   while (left > 0) {
+    // 가끔 같은 종류가 줄줄이 몰려 나온다 — 나무만 여럿, 벽돌만 여럿.
+    if (themeLeft <= 0) {
+      const run = rand();
+      theme = run < 0.32 ? pick(rand, OBSTACLE_KINDS) : null;
+      themeLeft = theme ? 2 + Math.floor(rand() * 5) : 1 + Math.floor(rand() * 6);
+    }
+    themeLeft--;
+
     const r = rand();
     let want = 1;
     if (left >= 3 && r < OBSTACLE_CLUSTER.tripleChance) want = 3;
     else if (left >= 2 && r < OBSTACLE_CLUSTER.tripleChance + OBSTACLE_CLUSTER.pairChance) want = 2;
 
     let g = null;
-    for (let size = want; size >= 1 && !g; size--) g = buildCluster(rand, size, speed);
+    for (let size = want; size >= 1 && !g; size--) g = buildCluster(rand, size, speed, theme);
     groups.push(g);
     left -= g.parts.length;
   }
@@ -165,13 +190,15 @@ function perchBagooms(rand, want, obstacles, groupSizes, mul) {
   const perched = [];
   for (let i = 0; i < want && eligible.length; i++) {
     const [o] = eligible.splice(Math.floor(rand() * eligible.length), 1);
+    const wander = wanderOf(rand, mul, BAGOOM_PERCH);
     perched.push({
       x: o.x + (o.w - BAGOOM.w) / 2,
       startY: -o.h - BAGOOM.h,
       perch: true,
       cluster: 1,
       group: -1 - i,
-      ...wanderOf(rand, mul, BAGOOM_PERCH),
+      ...wander,
+      bias: wobbleAt0(wander),   // 제 발판 위에서 출발하도록
     });
   }
   return perched;
@@ -233,6 +260,7 @@ function placeBagooms(rand, count, usableStart, usableEnd, placed, clearance, se
         startY: -BAGOOM.h,
         perch: false,
         ...wander,
+        bias: 0,   // 잔디밭 바굼은 ±amp 범위를 전제로 여유를 잡아두었다
         cluster: size,
         group: groupId,
       });
@@ -286,7 +314,14 @@ export function safeRespawnX(stage, deathX, seconds = CHECKPOINT_BACK_SECONDS) {
 // 그리기와 충돌이 같은 값을 써야 하므로 여기 한 곳에서만 계산한다.
 export function bagoomX(g, t) {
   const wobble = Math.sin(t * g.rate + g.phase) + 0.6 * Math.sin(t * g.rate * 1.7 + g.phase2);
-  return g.x + (g.amp * wobble) / 1.6;
+  return g.x + (g.amp * (wobble - g.bias)) / 1.6;
+}
+
+// t = 0 일 때의 흔들림 값. 이걸 빼주면 바굼이 배치된 자리에서 출발한다.
+// 안 빼면 첫 프레임에 최대 amp 만큼 옆으로 순간이동하는데, 장애물 위에
+// 올려둔 바굼은 그 한 번으로 제 발판 밖으로 나가버린다.
+function wobbleAt0(w) {
+  return Math.sin(w.phase) + 0.6 * Math.sin(w.phase2);
 }
 
 // ─── 스테이지 만들기 ────────────────────────────────────

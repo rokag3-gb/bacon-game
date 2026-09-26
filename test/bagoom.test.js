@@ -91,6 +91,43 @@ test('지면을 걷는 바굼이 장애물 안으로 파고들지 않는다', ()
   }
 });
 
+// 바굼 x 를 시간의 함수로 매 프레임 새로 대입하면, 옆구리에 막혀 있는 동안에도
+// "가려는 위치"가 흘러가다 장애물 반대편을 벗어나는 순간 관통해 순간이동한다.
+// 이제는 이번 프레임에 움직이려 한 만큼만 옮기고 그 이동을 장애물이 막는다.
+test('바굼은 절대 순간이동하지 않는다', () => {
+  for (let n = 1; n <= 5; n++) {
+    for (const seed of [1, 7, 42, 777, 2026]) {
+      const stage = buildStage(n, seed);
+      const states = createBagoomStates(stage);
+      let prev = states.map((st) => st.x);
+      for (let f = 0; f < 2400; f++) {
+        updateBagooms(stage, states, f * DT, DT, stage.obstacles, new Set());
+        states.forEach((st, i) => {
+          const moved = Math.abs(st.x - prev[i]);
+          assert.ok(moved < 8, `스테이지 ${n}/${seed} 바굼 ${i}: 한 프레임에 ${moved.toFixed(1)}u 튀었다`);
+          prev[i] = st.x;
+        });
+      }
+    }
+  }
+});
+
+test('장애물 위 바굼은 제 발판 위에서 출발한다', () => {
+  for (let n = 2; n <= 5; n++) {
+    for (let seed = 1; seed <= 40; seed++) {
+      const stage = buildStage(n, seed);
+      const states = createBagoomStates(stage);
+      stage.bagooms.forEach((g, i) => {
+        if (!g.perch) return;
+        const under = stage.obstacles.find(
+          (o) => states[i].x + BAGOOM.w > o.x && states[i].x < o.x + o.w,
+        );
+        assert.ok(under, `스테이지 ${n}/${seed}: 시작부터 발판 밖에 있다`);
+      });
+    }
+  }
+});
+
 test('잡힌 바굼은 더 이상 움직이지 않는다', () => {
   const stage = buildStage(3, 31);
   const states = createBagoomStates(stage);
