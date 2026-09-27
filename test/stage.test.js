@@ -83,7 +83,7 @@ test('무리 안의 장애물은 딱 붙어 있다', () => {
       byGroup.get(o.group).push(o);
     }
     for (const [gi, parts] of byGroup) {
-      assert.ok(parts.length <= 3, `스테이지 ${n}/${seed}: ${gi}번 무리가 ${parts.length}개`);
+      assert.ok(parts.length <= 6, `스테이지 ${n}/${seed}: ${gi}번 무리가 ${parts.length}개`);
       for (let i = 1; i < parts.length; i++) {
         const gap = parts[i].x - (parts[i - 1].x + parts[i - 1].w);
         assert.ok(gap >= 0 && gap <= 12, `스테이지 ${n}/${seed}: 무리 안 간격 ${gap.toFixed(1)}u`);
@@ -167,16 +167,26 @@ test('장애물 위 바굼은 그 장애물 꼭대기에 정확히 서 있다', 
   });
 });
 
-// 높은 장애물 위에 올리면 둘을 합친 높이를 한 번에 넘어야 해서 넘을 수 없어진다
-test('장애물 위 바굼은 낮고 홀로 선 장애물에만 올라간다', () => {
+// 높은 장애물 위에 올리면 둘을 합친 높이를 한 번에 넘어야 해서 넘기 빡빡해진다.
+// 무리 안에 올릴 때는 그 무리의 최고 높이를 넘지 않아야 난이도가 그대로다.
+test('장애물 위 바굼이 넘어야 할 높이를 키우지 않는다', () => {
   eachStage((s, n, seed) => {
     const size = new Map();
-    for (const o of s.obstacles) size.set(o.group, (size.get(o.group) || 0) + 1);
+    const maxH = new Map();
+    for (const o of s.obstacles) {
+      size.set(o.group, (size.get(o.group) || 0) + 1);
+      maxH.set(o.group, Math.max(maxH.get(o.group) || 0, o.h));
+    }
     for (const b of s.bagooms) {
       if (!b.perch) continue;
       const under = s.obstacles.find((o) => b.x + BAGOOM.w > o.x && b.x < o.x + o.w);
       assert.ok(under.h <= BAGOOM_PERCH.maxHeight, `스테이지 ${n}/${seed}: ${under.kind}(${under.h}u) 위에 있다`);
-      assert.equal(size.get(under.group), 1, `스테이지 ${n}/${seed}: 무리 위에 올라갔다`);
+      if (size.get(under.group) > 1) {
+        assert.ok(
+          under.h + BAGOOM.h <= maxH.get(under.group),
+          `스테이지 ${n}/${seed}: 무리 최고 높이(${maxH.get(under.group)})를 넘겨 ${under.h + BAGOOM.h} 이 됐다`,
+        );
+      }
     }
   });
 });

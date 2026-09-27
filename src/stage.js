@@ -171,10 +171,12 @@ function scatterOnce(rand, count, speed, lo, drawHi, hi, minGap) {
   const clumps = [];
   let left = count;
   while (left > 0) {
-    const want = Math.min(left, 1 + Math.floor(rand() * rand() * 4.4)); // 작은 쪽이 잦게
+    // 물리가 허락하는 한 최대한 붙인다. 뭉치가 클수록 떼어놓을 자리가 줄어
+    // 같은 공간에 훨씬 많이 꽂을 수 있다.
     let parts = [];
     let w = 0;
-    for (let i = 0; i < want; i++) {
+    for (let i = 0; i < Math.min(left, 6); i++) {
+      if (parts.length && rand() > 0.82) break;   // 가끔 일찍 끊어 크기를 섞는다
       const k = pick(rand, OBSTACLE_KINDS);
       const dx = parts.length ? w + OBSTACLE_CLUSTER.gap : 0;
       const trial = [...parts, { kind: k.kind, w: k.w, h: k.h, dx }];
@@ -268,9 +270,18 @@ function wanderOf(rand, mul, range = BAGOOM_WANDER) {
 // 서성이다 가장자리를 넘으면 떨어져 그때부터 잔디밭에서 걷는다.
 function perchBagooms(rand, want, obstacles, groupSizes, mul) {
   if (want <= 0) return [];
-  const eligible = obstacles.filter(
-    (o) => o.h <= BAGOOM_PERCH.maxHeight && groupSizes[o.group] === 1,
-  );
+
+  // 무리가 커지면서 홀로 선 장애물이 귀해졌다. 무리 안의 낮은 장애물 위에도
+  // 올린다 — 단, 바굼을 얹은 높이가 그 무리의 최고 높이를 넘지 않을 때만.
+  // 넘지 않으면 한 번에 넘는 데 필요한 높이가 그대로라 난이도가 안 변한다.
+  const groupMaxH = {};
+  for (const o of obstacles) groupMaxH[o.group] = Math.max(groupMaxH[o.group] || 0, o.h);
+
+  const eligible = obstacles.filter((o) => {
+    if (o.h > BAGOOM_PERCH.maxHeight) return false;
+    if (groupSizes[o.group] === 1) return true;
+    return o.h + BAGOOM.h <= groupMaxH[o.group];
+  });
   const perched = [];
   for (let i = 0; i < want && eligible.length; i++) {
     const [o] = eligible.splice(Math.floor(rand() * eligible.length), 1);

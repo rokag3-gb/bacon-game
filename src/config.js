@@ -78,11 +78,11 @@ export const OBSTACLE_KINDS = [
 // 속도는 일정하게 오르지 않는다. 증가폭 자체가 커지는 J 커브 —
 // n log n 을 따라간 모양이다 (+26, +30, +35, +41).
 export const STAGES = [
-  { speed: 330, length: 16800, obstacles: 24, bagooms: 6  },
-  { speed: 359, length: 20800, obstacles: 34, bagooms: 9  },
-  { speed: 392, length: 31500, obstacles: 55, bagooms: 16 },
-  { speed: 430, length: 37000, obstacles: 67, bagooms: 21 },
-  { speed: 475, length: 42000, obstacles: 75, bagooms: 26 },
+  { speed: 363, length: 16800, obstacles: 29, bagooms: 10 },
+  { speed: 395, length: 20800, obstacles: 41, bagooms: 14 },
+  { speed: 431, length: 31500, obstacles: 66, bagooms: 23 },
+  { speed: 473, length: 37000, obstacles: 77, bagooms: 27 },
+  { speed: 523, length: 42000, obstacles: 85, bagooms: 30 },
 ];
 
 // 장애물 수는 바굼을 지키면서 넣을 수 있는 한계까지 올린 값이다.
@@ -109,7 +109,7 @@ export const END_CLEAR = 800;         // 팩맨 앞 비워두는 구간
 // 1.6 은 넉넉한 안전 마진이었다. 1.2 로 낮춰 훨씬 조이는 구간이 나올 수 있게
 // 했다 — 착지 후 다음 점프까지 체공시간의 20%(약 0.17초)가 남는다.
 // 더 붙어야 하는 조합은 아예 한 무리로 묶어 한 번에 넘게 한다.
-export const OBSTACLE_GAP_FACTOR = 1.2;
+export const OBSTACLE_GAP_FACTOR = 1.15;
 export const BAGOOM_GAP_FACTOR = 0.8;    // 바굼과 장애물 사이 최소 간격
 
 // 스테이지 2부터는 간격을 설계하지 않는다. 지수분포로 뽑아 진짜 무작위로
@@ -143,7 +143,7 @@ export const OBSTACLE_CLUSTER = {
 // 그래서 낮은 것(덤불·벽돌) 위에만 올린다.
 export const BAGOOM_PERCH = {
   fromStage: 2,
-  share: 0.28,      // 바굼 중 이만큼이 장애물 위에서 시작한다
+  share: 0.45,      // 바굼 중 이만큼이 장애물 위에서 시작한다
   maxHeight: 110,
   fallGravity: 1800, // 베이컨보다 가볍게 떨어진다
   // 장애물 위 바굼은 더 넓게 서성인다. 보통 폭(최대 45u)으로는 장애물
