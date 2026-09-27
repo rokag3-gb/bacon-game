@@ -6,8 +6,11 @@ export const SIGHT_W = 900;      // 가로로 항상 보이는 거리
 export const MIN_VIEW_H = 460;   // 세로로 최소한 보여야 하는 높이 (점프 224 + 키 100 + 여유)
 
 // ─── 물리 ───────────────────────────────────────────────
-export const GRAVITY = 2600;     // u/s²
-export const JUMP_V0 = 1080;     // u/s → 최고점 224u, 체공 0.83초
+// 높이는 그대로 두고 체공 시간만 줄여 점프를 빠릿하게 만들었다.
+//   최고점 = v0² / 2g = 224u,  체공 = 2·v0 / g = 0.70초
+// 체공이 짧아지면 장애물 사이 최소 간격도 그만큼 줄어, 훨씬 빽빽하게 넣을 수 있다.
+export const GRAVITY = 3657;     // u/s²  (예전 2600, 체공 0.83초)
+export const JUMP_V0 = 1280;     // u/s → 최고점 224u, 체공 0.70초
 export const JUMP_CUT = 0.45;    // 버튼을 떼면 상승 속도를 이 비율로 깎는다
 export const JUMP_MIN_HOLD = 0.08; // 그 전까지는 떼도 안 깎는다 (초)
 
@@ -76,10 +79,10 @@ export const OBSTACLE_KINDS = [
 // n log n 을 따라간 모양이다 (+26, +30, +35, +41).
 export const STAGES = [
   { speed: 300, length: 21000, obstacles: 30, bagooms: 7  },
-  { speed: 326, length: 26000, obstacles: 55, bagooms: 11 },
-  { speed: 356, length: 31500, obstacles: 63, bagooms: 16 },
-  { speed: 391, length: 37000, obstacles: 75, bagooms: 21 },
-  { speed: 432, length: 42000, obstacles: 85, bagooms: 26 },
+  { speed: 326, length: 26000, obstacles: 59, bagooms: 11 },
+  { speed: 356, length: 31500, obstacles: 69, bagooms: 16 },
+  { speed: 391, length: 37000, obstacles: 82, bagooms: 21 },
+  { speed: 432, length: 42000, obstacles: 91, bagooms: 26 },
 ];
 
 // 장애물 수는 바굼을 지키면서 넣을 수 있는 한계까지 올린 값이다.

@@ -15,8 +15,8 @@ test('점프 최고점은 224u', () => {
   assert.ok(Math.abs(jumpApex() - 224) < 1, `실제 ${jumpApex()}`);
 });
 
-test('체공 시간은 0.83초', () => {
-  assert.ok(Math.abs(airtime() - 0.83) < 0.01, `실제 ${airtime()}`);
+test('체공 시간은 0.70초', () => {
+  assert.ok(Math.abs(airtime() - 0.70) < 0.01, `실제 ${airtime()}`);
 });
 
 test('최고점보다 높은 곳에는 머물 수 없다', () => {

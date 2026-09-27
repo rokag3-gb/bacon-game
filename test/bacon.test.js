@@ -33,9 +33,9 @@ test('끝까지 누르면 설계대로 224u까지 오른다', () => {
   assert.ok(Math.abs(apex - JUMP_APEX) < 3, `${apex.toFixed(1)}u (${JUMP_APEX.toFixed(1)}u 기대)`);
 });
 
-test('체공 시간은 0.83초쯤', () => {
+test('체공 시간은 0.70초쯤', () => {
   const { airtime } = simulateJump();
-  assert.ok(Math.abs(airtime - 0.83) < 0.03, `${airtime.toFixed(3)}초`);
+  assert.ok(Math.abs(airtime - 0.70) < 0.03, `${airtime.toFixed(3)}초`);
 });
 
 test('버튼을 일찍 떼면 낮게 뛴다', () => {
