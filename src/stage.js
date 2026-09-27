@@ -8,6 +8,9 @@ import {
   STAGES,
   OBSTACLE_KINDS,
   OBSTACLE_CLUSTER,
+  STACK_PATTERNS,
+  JUMP_APEX,
+  STACK_LAND_MARGIN,
   CHAOS_FROM_STAGE,
   CLUSTER_BOOST_PER_STAGE,
   BACON,
@@ -152,41 +155,92 @@ function makeGroups(rand, count, speed, boost = 1) {
 // 것들은 **떼어놓는 대신 붙여서 한 무리로** 만든다. 한 번에 넘을 수 있는
 // 크기를 넘어설 때만 끊는다. 간격을 벌릴 필요가 없으니 위치가 진짜 무작위가
 // 되고, 몰린 곳은 몰린 채로 남는다.
-function scatterGroups(rand, count, speed, lo, hi, minGap) {
+function scatterGroups(rand, count, speed, lo, hi, minGap, stacks) {
   // 밀어낸 만큼 전체가 뒤로 늘어나 끝을 넘치기 마련이다. 넘친 만큼 뽑는
   // 범위를 좁혀 다시 뽑으면 몇 번 안에 맞아떨어진다.
   let squeeze = 0;
   for (let attempt = 0; attempt < 40; attempt++) {
-    const { groups, over } = scatterOnce(rand, count, speed, lo, hi - squeeze, hi, minGap);
+    const { groups, over } = scatterOnce(rand, count, speed, lo, hi - squeeze, hi, minGap, stacks);
     if (groups) return groups;
     squeeze = Math.min((hi - lo) * 0.75, squeeze + over + (hi - lo) * 0.01);
   }
   return null;
 }
 
-function scatterOnce(rand, count, speed, lo, drawHi, hi, minGap) {
+// 세로로 쌓은 부품 하나. 통과할 수 있는 조합만 돌려준다.
+//
+// 통과 수단이 둘이다. 위로 넘어가려면 발이 꼭대기 위에 있는 동안 무리 폭 전체를
+// 지나가야 하고, 꼭대기에 올라타려면 몸통 폭만 지나가면 된다. 후자가 훨씬
+// 너그러워서, 넘기엔 너무 높은 것도 올라타서 통과할 수 있다.
+export function stackPasses(h, w, speed) {
+  const travel = timeAboveHeight(h) * speed;
+  if (travel > w + BACON.w + OBSTACLE_CLUSTER.margin) return true;       // 넘어가기
+  return h <= JUMP_APEX - STACK_LAND_MARGIN && travel > BACON.w + 20;    // 올라타기
+}
+
+function makeStack(rand, speed, maxN) {
+  const options = [];
+  for (const k of OBSTACLE_KINDS) {
+    for (let n = Math.min(3, maxN); n >= 2; n--) {
+      const h = k.h * n;
+      if (h > JUMP_APEX) continue;   // 최고점을 넘으면 올라탈 수조차 없다
+      if (!stackPasses(h, k.w, speed)) continue;
+      options.push({ kind: k.kind, w: k.w, h, stack: n });
+    }
+  }
+  return options.length ? { ...pick(rand, options) } : null;
+}
+
+// 이 스테이지에 놓을 부품 목록. 세로로 쌓은 것을 먼저 만들고 나머지를 낱개로
+// 채운 뒤 섞는다 — 쌓은 것이 스테이지 곳곳에 흩어지게 하기 위함이다.
+function makeParts(rand, count, speed, stacks) {
+  const queue = [];
+  let left = count;
+
+  for (let i = 0; i < stacks && left >= 2; i++) {
+    const p = makeStack(rand, speed, left);
+    if (!p) break;
+    queue.push(p);
+    left -= p.stack;
+  }
+  while (left-- > 0) {
+    const k = pick(rand, OBSTACLE_KINDS);
+    queue.push({ kind: k.kind, w: k.w, h: k.h, stack: 1 });
+  }
+
+  for (let i = queue.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [queue[i], queue[j]] = [queue[j], queue[i]];
+  }
+  return queue;
+}
+
+function scatterOnce(rand, count, speed, lo, drawHi, hi, minGap, stacks) {
   // 1. 먼저 장애물을 "뭉치"로 나눈다. 낱개로 흩뿌리면 결국 전부 최소 간격만큼
   //    떼어놓아야 해서 간격이 균일해진다. 뭉치로 묶으면 떼어놓을 자리가
   //    확 줄어, 남는 공간이 전부 무작위한 큰 틈으로 간다.
+  const queue = makeParts(rand, count, speed, stacks);
   const clumps = [];
-  let left = count;
-  while (left > 0) {
+  let qi = 0;
+  while (qi < queue.length) {
     // 물리가 허락하는 한 최대한 붙인다. 뭉치가 클수록 떼어놓을 자리가 줄어
     // 같은 공간에 훨씬 많이 꽂을 수 있다.
     let parts = [];
     let w = 0;
-    for (let i = 0; i < Math.min(left, 6); i++) {
+    let used = 0;
+    while (qi + used < queue.length && parts.length < 6) {
       if (parts.length && rand() > 0.82) break;   // 가끔 일찍 끊어 크기를 섞는다
-      const k = pick(rand, OBSTACLE_KINDS);
+      const k = queue[qi + used];
       const dx = parts.length ? w + OBSTACLE_CLUSTER.gap : 0;
-      const trial = [...parts, { kind: k.kind, w: k.w, h: k.h, dx }];
+      const trial = [...parts, { ...k, dx }];
       const tw = dx + k.w;
       if (parts.length && !clusterFits(trial, tw, speed)) break; // 한 번에 못 넘으면 그만
       parts = trial;
       w = tw;
+      used++;
     }
-    clumps.push({ parts, w });
-    left -= parts.length;
+    qi += used;
+    clumps.push({ parts, w, count: parts.reduce((a, p) => a + p.stack, 0) });
   }
 
   // 2. 뭉치를 무작위 위치에 던진다
@@ -204,7 +258,7 @@ function scatterOnce(rand, count, speed, lo, drawHi, hi, minGap) {
       shift += need - x;
       x = need;
     }
-    groups.push({ x, parts: c.parts, w: c.w });
+    groups.push({ x, parts: c.parts, w: c.w, count: c.count });
     prevEnd = x + c.w;
   }
 
@@ -268,7 +322,7 @@ function wanderOf(rand, mul, range = BAGOOM_WANDER) {
 
 // 바굼 몇 마리를 낮은 장애물 위에 올려 놓는다. 전부가 아니라 일부만이다.
 // 서성이다 가장자리를 넘으면 떨어져 그때부터 잔디밭에서 걷는다.
-function perchBagooms(rand, want, obstacles, groupSizes, mul) {
+function perchBagooms(rand, want, obstacles, groupSizes, mul, usableEnd) {
   if (want <= 0) return [];
 
   // 무리가 커지면서 홀로 선 장애물이 귀해졌다. 무리 안의 낮은 장애물 위에도
@@ -286,8 +340,11 @@ function perchBagooms(rand, want, obstacles, groupSizes, mul) {
   for (let i = 0; i < want && eligible.length; i++) {
     const [o] = eligible.splice(Math.floor(rand() * eligible.length), 1);
     const wander = wanderOf(rand, mul, BAGOOM_PERCH);
+    // 좁은 장애물 위에서는 바굼이 양옆으로 삐져나온다. 끝 여유 구간만은
+    // 넘지 않도록 잘라 둔다.
+    const cx = Math.min(o.x + (o.w - BAGOOM.w) / 2, usableEnd - BAGOOM.w);
     perched.push({
-      x: o.x + (o.w - BAGOOM.w) / 2,
+      x: cx,
       startY: -o.h - BAGOOM.h,
       perch: true,
       cluster: 1,
@@ -466,12 +523,16 @@ function attemptStage(stageNo, cfg, mixedSeed, seed) {
   let obstacles;
   let placed;
   if (chaos) {
-    const scattered = scatterGroups(rand, cfg.obstacles, cfg.speed, usableStart, usableEnd, minGap);
+    const scattered = scatterGroups(
+      rand, cfg.obstacles, cfg.speed, usableStart, usableEnd, minGap, STACK_PATTERNS[stageNo] || 0,
+    );
     if (!scattered) return { stageNo, seed, speed: cfg.speed, length: cfg.length, minGap, groups: [], obstacles: [], bagooms: [] };
     placed = scattered.map((g) => ({ x: g.x, w: g.w, size: g.parts.length }));
     obstacles = [];
     for (const [i, g] of scattered.entries()) {
-      for (const p of g.parts) obstacles.push({ x: g.x + p.dx, kind: p.kind, w: p.w, h: p.h, group: i });
+      for (const p of g.parts) {
+        obstacles.push({ x: g.x + p.dx, kind: p.kind, w: p.w, h: p.h, stack: p.stack, group: i });
+      }
     }
   } else {
     const groups = makeGroups(rand, cfg.obstacles, cfg.speed, 1);
@@ -486,7 +547,7 @@ function attemptStage(stageNo, cfg, mixedSeed, seed) {
     ? Math.round(cfg.bagooms * BAGOOM_PERCH.share)
     : 0;
   const groupSizes = placed.map((g) => g.size);
-  const perched = perchBagooms(rand, perchWant, obstacles, groupSizes, wanderMul);
+  const perched = perchBagooms(rand, perchWant, obstacles, groupSizes, wanderMul, usableEnd);
 
   const onLawn = placeBagooms(
     rand, cfg.bagooms - perched.length, usableStart, usableEnd,

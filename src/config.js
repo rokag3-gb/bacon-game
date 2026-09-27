@@ -81,8 +81,8 @@ export const STAGES = [
   { speed: 363, length: 16800, obstacles: 29, bagooms: 10 },
   { speed: 395, length: 20800, obstacles: 41, bagooms: 14 },
   { speed: 431, length: 31500, obstacles: 66, bagooms: 23 },
-  { speed: 473, length: 37000, obstacles: 77, bagooms: 27 },
-  { speed: 523, length: 42000, obstacles: 85, bagooms: 30 },
+  { speed: 473, length: 40700, obstacles: 85, bagooms: 30 },
+  { speed: 523, length: 46200, obstacles: 94, bagooms: 33 },
 ];
 
 // 장애물 수는 바굼을 지키면서 넣을 수 있는 한계까지 올린 값이다.
@@ -134,6 +134,24 @@ export const OBSTACLE_CLUSTER = {
   margin: 25,        // 넘을 수 있는지 볼 때 남겨두는 여유
   shortBias: 0.75,   // 무리를 지을 때 낮은 장애물을 고를 확률
 };
+
+// 임시: 게임을 몇 번 스테이지부터 시작할지. 1 이 정상이다.
+export const START_STAGE = 3;
+
+// 장애물을 세로로 쌓은 패턴. 가로로 붙이는 것과 달리 넘어야 할 높이가 올라가
+// 실제로 어려워진다. 스테이지별로 이만큼 넣는다.
+//
+// 쌓을 수 있는 조합은 점프 최고점(224u)이 정한다. 통과 수단은 두 가지다 —
+// 위로 넘어가거나, 꼭대기에 올라타거나. 올라타기는 발이 꼭대기보다 높은 동안
+// 몸통 폭(46u)만 지나가면 되므로 훨씬 높은 것도 통과할 수 있다.
+//
+//   수풀 2·3단 (110·165u) — 전 스테이지에서 넘어감
+//   벽돌 2단   (200u)     — 전 스테이지 통과. 2~4 는 올라타기, 5 는 넘어감
+//   토관 2단   (220u)     — 불가. 발이 위에 머무는 동안 37~49u 밖에 못 가는데
+//                           몸통이 46u 다. 스테이지 5 에서도 1프레임 창이다
+//   기둥·나무 2단 (240u+) — 불가. 최고점을 넘어 올라탈 수도 없다
+export const STACK_LAND_MARGIN = 8;   // 꼭대기와 최고점 사이 최소 여유
+export const STACK_PATTERNS = { 2: 1, 3: 2, 4: 5, 5: 10 };
 
 // 바굼이 장애물 위에 올라앉기도 한다. 서성이다 가장자리를 넘으면 떨어져
 // 그때부터 잔디밭에서 걷는다.

@@ -288,7 +288,7 @@ function drawEntities(ctx) {
   for (const o of stage.obstacles) {
     const px = sx(o.x, cameraX);
     if (px > viewport.cssW + 40 || px + su(o.w) < -40) continue;
-    drawObstacle(ctx, o.kind, px, sy(-o.h), su(o.w), su(o.h), s);
+    drawObstacle(ctx, o.kind, px, sy(-o.h), su(o.w), su(o.h), s, o.stack);
   }
 
   const baconCx = bacon.x + BACON.w / 2;

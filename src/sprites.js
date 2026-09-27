@@ -363,10 +363,18 @@ const OBSTACLE_PAINTERS = {
   },
 };
 
-export function drawObstacle(ctx, kind, px, py, pw, ph, s) {
+/**
+ * @param {number} [stack] 세로로 쌓은 개수. 전체 높이를 n등분해 같은 그림을
+ *   위에서부터 쌓아 올린다 — 하나를 늘려 그리면 쌓은 티가 안 난다.
+ */
+export function drawObstacle(ctx, kind, px, py, pw, ph, s, stack = 1) {
+  const paint = OBSTACLE_PAINTERS[kind] || OBSTACLE_PAINTERS.brick;
+  const n = Math.max(1, stack);
+  const each = ph / n;
+
   ctx.save();
   outline(ctx, s);
-  (OBSTACLE_PAINTERS[kind] || OBSTACLE_PAINTERS.brick)(ctx, px, py, pw, ph, s);
+  for (let i = 0; i < n; i++) paint(ctx, px, py + each * i, pw, each, s);
   ctx.restore();
 }
 

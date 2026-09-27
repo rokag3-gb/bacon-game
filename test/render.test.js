@@ -211,6 +211,16 @@ test('모든 스프라이트가 NaN 없이 그려진다', async () => {
   }
   assert.doesNotThrow(() => drawObstacle(ctx, '없는종류', 100, 100, 40, 40, s), '모르는 종류');
 
+  // 세로로 쌓은 것은 같은 그림을 여러 개 올려 그린다
+  for (const stack of [2, 3]) {
+    for (const o of OBSTACLE_KINDS) {
+      assert.doesNotThrow(
+        () => drawObstacle(ctx, o.kind, 100, 100, o.w * s, o.h * stack * s, s, stack),
+        `${o.kind} ${stack}단`,
+      );
+    }
+  }
+
   assert.ok(BACON.w > 0 && BAGOOM.w > 0);
 });
 

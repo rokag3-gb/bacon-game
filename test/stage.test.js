@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { buildStage, safeRespawnX, checkpointBack } from '../src/stage.js';
+import { buildStage, safeRespawnX, checkpointBack, stackPasses } from '../src/stage.js';
 import {
   STAGES,
   BACON,
@@ -13,6 +13,8 @@ import {
   BAGOOM_GAP_FACTOR,
   CHECKPOINT_BACK_SECONDS,
   SIGHT_W,
+  STACK_PATTERNS,
+  JUMP_APEX,
   BAGOOM_PERCH,
   RESPAWN_CLEARANCE,
 } from '../src/config.js';
@@ -39,10 +41,44 @@ test('다른 시드는 다른 배치를 만든다', () => {
   }
 });
 
+// 세로로 쌓은 장애물은 항목 하나가 여러 개다. 개수는 쌓은 것까지 세어 맞춘다.
+const obstacleCount = (s) => s.obstacles.reduce((a, o) => a + (o.stack || 1), 0);
+
 test('장애물과 바굼 개수가 수치 테이블과 같다', () => {
   eachStage((s, n) => {
-    assert.equal(s.obstacles.length, STAGES[n - 1].obstacles, `스테이지 ${n} 장애물`);
+    assert.equal(obstacleCount(s), STAGES[n - 1].obstacles, `스테이지 ${n} 장애물`);
     assert.equal(s.bagooms.length, STAGES[n - 1].bagooms, `스테이지 ${n} 바굼`);
+  });
+});
+
+test('세로로 쌓은 패턴이 스테이지마다 정해진 개수만큼 나온다', () => {
+  for (const n of stageNos) {
+    for (const seed of SEEDS) {
+      const s = buildStage(n, seed);
+      const stacked = s.obstacles.filter((o) => (o.stack || 1) > 1);
+      assert.equal(
+        stacked.length, STACK_PATTERNS[n] || 0,
+        `스테이지 ${n}/${seed}: ${stacked.length}개`,
+      );
+      for (const o of stacked) {
+        assert.ok(o.stack >= 2 && o.stack <= 3, `${o.stack}단은 범위 밖`);
+        assert.ok(o.h <= JUMP_APEX, `${o.kind} ${o.stack}단(${o.h}u)이 최고점을 넘는다`);
+      }
+    }
+  }
+});
+
+// 쌓으면 높이가 올라간다. 넘어가거나 꼭대기에 올라타거나, 둘 중 하나로는
+// 반드시 통과할 수 있어야 한다.
+test('세로로 쌓은 패턴도 한 번의 점프로 통과할 수 있다', () => {
+  eachStage((s, n, seed) => {
+    for (const o of s.obstacles) {
+      if ((o.stack || 1) === 1) continue;
+      assert.ok(
+        stackPasses(o.h, o.w, s.speed),
+        `스테이지 ${n}/${seed}: ${o.kind} ${o.stack}단(${o.h}u)을 통과할 수 없다`,
+      );
+    }
   });
 });
 
@@ -264,9 +300,13 @@ test('배치된 무리는 전부 한 번의 점프로 넘을 수 있다', () => 
     for (const [gi, parts] of byGroup) {
       const width = Math.max(...parts.map((p) => p.x + p.w)) - Math.min(...parts.map((p) => p.x));
       const height = Math.max(...parts.map((p) => p.h));
+      // 여럿이 붙은 무리는 통째로 넘어가야 한다. 홀로 선 것은 올라타도 된다.
+      const ok = parts.length > 1
+        ? canClear(height, width, BACON.w, s.speed)
+        : stackPasses(height, width, s.speed);
       assert.ok(
-        canClear(height, width, BACON.w, s.speed),
-        `스테이지 ${n}/${seed}: ${gi}번 무리(${parts.length}개, 폭 ${width.toFixed(0)}u, 높이 ${height}u)를 넘을 수 없다`,
+        ok,
+        `스테이지 ${n}/${seed}: ${gi}번 무리(${parts.length}개, 폭 ${width.toFixed(0)}u, 높이 ${height}u)를 통과할 수 없다`,
       );
     }
   });
