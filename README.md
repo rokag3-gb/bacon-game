@@ -3,6 +3,18 @@
 > 정장을 입은 **베이컨**이 횡스크롤 맵을 점프로 헤쳐나가, 스테이지 끝에서 입을 벌리고
 > 기다리는 **팩맨** 안으로 쏙 들어가는 게임.
 
+<p align="center">
+  <a href="https://rokag3-gb.github.io/bacon-game/">
+    <img alt="지금 바로 플레이하기"
+         src="https://img.shields.io/badge/%E2%96%B6%20%EC%A7%80%EA%B8%88%20%EB%B0%94%EB%A1%9C%20%ED%94%8C%EB%A0%88%EC%9D%B4%ED%95%98%EA%B8%B0-F58220?style=for-the-badge&labelColor=8B5A2B">
+  </a>
+</p>
+
+<p align="center">
+  <a href="https://rokag3-gb.github.io/bacon-game/"><b>https://rokag3-gb.github.io/bacon-game/</b></a><br>
+  <sub>설치 없이 브라우저에서 바로 시작됩니다 · 새 탭으로 열려면 <kbd>Ctrl</kbd>(맥은 <kbd>⌘</kbd>) + 클릭</sub>
+</p>
+
 초등학생 아이가 게임을 기획하고 캐릭터와 배경을 직접 그렸습니다.
 설치할 것 없이 브라우저만 있으면 됩니다. PC와 모바일 모두, 세로·가로 어느 쪽으로도 플레이합니다.
 
