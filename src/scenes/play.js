@@ -134,7 +134,7 @@ export const play = {
     if (z.id === 'mute') {
       toggleMute();
       sfx.select();
-    } else if (z.id === 'gear') {
+    } else if (z.id === 'exit') {
       toggleMenu();
     } else if (z.index !== undefined) {
       menu.selected = z.index;

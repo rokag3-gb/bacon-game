@@ -40,7 +40,7 @@ test('배경을 죽 스크롤해도 예외가 없다', () => {
 
 // 음소거 아이콘의 음파가 버튼 밖으로 튀어나와 있었다. clip으로 가리기도 하지만
 // 애초에 도형이 네모 안에 들어와야 한다.
-test('톱니와 음소거 그림이 버튼 네모 안에 들어온다', async () => {
+test('나가기와 음소거 그림이 버튼 네모 안에 들어온다', async () => {
   const { drawIcons } = await import('../src/ui.js');
   for (const s of SCREENS) {
     for (const muted of [false, true]) {
@@ -63,6 +63,23 @@ test('톱니와 음소거 그림이 버튼 네모 안에 들어온다', async ()
       assert.ok(bounds.minY >= top - 0.5, `${where}: 위로 ${(top - bounds.minY).toFixed(1)}px 삐져나옴`);
       assert.ok(bounds.maxY <= bottom + 0.5, `${where}: 아래로 ${(bounds.maxY - bottom).toFixed(1)}px 삐져나옴`);
     }
+  }
+});
+
+// 인트로에는 나갈 곳이 없다. 눌리지도 않는 버튼을 띄우면 안 된다.
+test('나가기 버튼을 끄면 음소거만 남는다', async () => {
+  const { drawIcons } = await import('../src/ui.js');
+  for (const s of SCREENS) {
+    installDom(s.w, s.h);
+    attach(makeCanvas(s.w, s.h));
+
+    const both = drawIcons(viewport.ctx, { muted: false });
+    assert.deepEqual(both.map((z) => z.id), ['exit', 'mute'], s.name);
+
+    const only = drawIcons(viewport.ctx, { muted: false, exit: false });
+    assert.deepEqual(only.map((z) => z.id), ['mute'], s.name);
+    // 나가기가 없으면 음소거가 그 자리를 차지한다
+    assert.equal(only[0].box.x, both[0].box.x, `${s.name}: 음소거가 오른쪽 끝으로 안 갔다`);
   }
 });
 

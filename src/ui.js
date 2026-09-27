@@ -50,27 +50,52 @@ function touchZone(box, id) {
   };
 }
 
-function gearIcon(ctx, cx, cy, r) {
+// 열린 문 — 나가기. 문틀에서 문짝이 이쪽으로 열려 있고 화살표가 빠져나간다.
+// 글리프 전체가 가로 ±1.35r, 세로 ±1.2r 안에 들어오도록 잡았다.
+function doorIcon(ctx, cx, cy, r) {
+  const left = cx - r * 1.3;
+  const top = cy - r * 1.15;
+  const hh = r * 2.3;
+
+  ctx.strokeStyle = '#12303f';
   ctx.fillStyle = '#12303f';
-  for (let i = 0; i < 8; i++) {
-    const a = (i / 8) * Math.PI * 2;
-    ctx.save();
-    ctx.translate(cx, cy);
-    ctx.rotate(a);
-    ctx.fillRect(-r * 0.22, -r * 1.45, r * 0.44, r * 0.6);
-    ctx.restore();
-  }
+  ctx.lineWidth = Math.max(1.6, r * 0.24);
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+
+  // 문틀 — 위 / 왼쪽 / 아래
   ctx.beginPath();
-  ctx.arc(cx, cy, r, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = 'rgba(255,255,255,0.85)';
+  ctx.moveTo(left + r * 0.85, top);
+  ctx.lineTo(left, top);
+  ctx.lineTo(left, top + hh);
+  ctx.lineTo(left + r * 0.85, top + hh);
+  ctx.stroke();
+
+  // 열린 문짝 — 앞쪽이 넓은 사다리꼴
   ctx.beginPath();
-  ctx.arc(cx, cy, r * 0.42, 0, Math.PI * 2);
+  ctx.moveTo(left, top + r * 0.1);
+  ctx.lineTo(left + r * 0.72, top - r * 0.12);
+  ctx.lineTo(left + r * 0.72, top + hh + r * 0.12);
+  ctx.lineTo(left, top + hh - r * 0.1);
+  ctx.closePath();
+  ctx.stroke();
+
+  // 손잡이
+  ctx.beginPath();
+  ctx.arc(left + r * 0.18, cy, r * 0.16, 0, Math.PI * 2);
   ctx.fill();
+
+  // 빠져나가는 화살표
+  const ax = left + r * 1.15;
+  ctx.beginPath();
+  ctx.moveTo(ax, cy);
+  ctx.lineTo(ax + r * 1.05, cy);
+  ctx.moveTo(ax + r * 0.58, cy - r * 0.46);
+  ctx.lineTo(ax + r * 1.08, cy);
+  ctx.lineTo(ax + r * 0.58, cy + r * 0.46);
+  ctx.stroke();
 }
 
-// 버튼 반쪽이 1.67r 이므로 글리프 전체가 가로 ±1.2r 안에 들어오도록 잡았다.
-// 예전에는 음파가 1.55r 까지 뻗어 버튼 밖으로 튀어나왔다.
 function speakerIcon(ctx, cx, cy, r, muted) {
   const bx = cx - r * 0.35; // 스피커를 왼쪽으로 조금 밀어 음파 자리를 만든다
 
@@ -107,20 +132,27 @@ function speakerIcon(ctx, cx, cy, r, muted) {
   }
 }
 
-// 우상단 톱니바퀴와 음소거.
+// 우상단 나가기(열린 문)와 음소거.
+// exit 을 false 로 주면 나가기를 아예 그리지 않는다 — 인트로처럼 나갈 곳이
+// 없는 화면에서 눌리지도 않는 버튼을 띄우지 않기 위함이다.
 // 예전에는 크기를 화면 폭의 10%로 잡아 데스크톱에서 160px까지 커졌다.
 // 작게 그리되, 누르는 영역은 손가락이 닿을 만큼 넓게 남긴다.
-export function drawIcons(ctx, { muted }) {
+export function drawIcons(ctx, { muted, exit = true }) {
   const s = Math.max(24, Math.min(40, viewport.cssW * 0.05));
   const m = hudMargin();
   // 그림은 작아도 누르는 영역은 44px이라, 둘 사이를 그만큼 띄워야 겹치지 않는다
   const gap = Math.max(14, TOUCH - s + 10);
-  const gear = { x: viewport.cssW - m - s, y: m, w: s, h: s };
-  const mute = { x: viewport.cssW - m - s * 2 - gap, y: m, w: s, h: s };
+
+  const door = { x: viewport.cssW - m - s, y: m, w: s, h: s };
+  const mute = exit
+    ? { x: viewport.cssW - m - s * 2 - gap, y: m, w: s, h: s }
+    : { x: viewport.cssW - m - s, y: m, w: s, h: s };
 
   iconButton(ctx, mute.x, mute.y, s, (c, cx, cy, r) => speakerIcon(c, cx, cy, r, muted));
-  iconButton(ctx, gear.x, gear.y, s, gearIcon);
-  return [touchZone(gear, 'gear'), touchZone(mute, 'mute')];
+  if (!exit) return [touchZone(mute, 'mute')];
+
+  iconButton(ctx, door.x, door.y, s, doorIcon);
+  return [touchZone(door, 'exit'), touchZone(mute, 'mute')];
 }
 
 export function drawHearts(ctx, lives, x, y) {

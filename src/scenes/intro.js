@@ -58,7 +58,8 @@ export const intro = {
 
     drawCredits(ctx);
 
-    zones = drawIcons(ctx, { muted: isMuted() }).filter((z) => z.id === 'mute');
+    // 인트로에는 나갈 곳이 없으므로 나가기 버튼을 띄우지 않는다
+    zones = drawIcons(ctx, { muted: isMuted(), exit: false });
     setUiZones(zones);
   },
 };
