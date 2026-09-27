@@ -77,9 +77,9 @@ export const OBSTACLE_KINDS = [
 export const STAGES = [
   { speed: 300, length: 21000, obstacles: 30, bagooms: 7  },
   { speed: 326, length: 26000, obstacles: 39, bagooms: 11 },
-  { speed: 356, length: 31500, obstacles: 44, bagooms: 16 },
-  { speed: 391, length: 37000, obstacles: 49, bagooms: 21 },
-  { speed: 432, length: 42000, obstacles: 51, bagooms: 26 },
+  { speed: 356, length: 31500, obstacles: 56, bagooms: 16 },
+  { speed: 391, length: 37000, obstacles: 66, bagooms: 21 },
+  { speed: 432, length: 42000, obstacles: 74, bagooms: 26 },
 ];
 
 // 장애물 수는 바굼을 지키면서 넣을 수 있는 한계까지 올린 값이다.
@@ -108,6 +108,14 @@ export const END_CLEAR = 800;         // 팩맨 앞 비워두는 구간
 // 더 붙어야 하는 조합은 아예 한 무리로 묶어 한 번에 넘게 한다.
 export const OBSTACLE_GAP_FACTOR = 1.2;
 export const BAGOOM_GAP_FACTOR = 0.8;    // 바굼과 장애물 사이 최소 간격
+
+// 스테이지 3부터는 간격을 설계하지 않는다. 지수분포로 뽑아 진짜 무작위로
+// 흩뿌린다 — 포아송 과정이라 뭉치와 빈 구간이 저절로 생긴다. 1~2 스테이지는
+// 아이가 익히는 구간이라 설계된 리듬을 그대로 쓴다.
+export const CHAOS_FROM_STAGE = 3;
+
+// 뒤 스테이지일수록 장애물이 더 자주 붙어 무리를 이룬다
+export const CLUSTER_BOOST_PER_STAGE = 0.35;
 
 // 장애물이 가끔 2~3개씩 붙어 나온다. 게임은 예외가 있어야 재미있다.
 //

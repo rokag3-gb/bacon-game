@@ -409,15 +409,26 @@ export function drawSign(ctx, text, centerY) {
   const y = centerY - h / 2;
   const r = fs * 0.18;
 
-  // 기둥 두 개 — 판자 뒤에서 아래로 뻗는다
-  const postW = Math.max(10, fs * 0.24);
+  // 화면 꼭대기에서 내려온 기둥 두 개에 판자를 매단다
+  const postW = Math.max(9, fs * 0.2);
   ctx.strokeStyle = INK;
   ctx.lineWidth = Math.max(3, fs * 0.055);
   ctx.lineJoin = 'round';
-  ctx.fillStyle = '#6B4420';
   for (const px of [x + w * 0.2, x + w * 0.8 - postW]) {
+    ctx.fillStyle = '#6B4420';
     ctx.beginPath();
-    ctx.rect(px, y + h * 0.45, postW, h * 1.5);
+    ctx.rect(px, -postW, postW, y + h * 0.4 + postW);
+    ctx.fill();
+    ctx.stroke();
+
+    // 기둥에 비치는 볕
+    ctx.fillStyle = 'rgba(255,255,255,0.16)';
+    ctx.fillRect(px + postW * 0.16, 0, postW * 0.26, y + h * 0.4);
+
+    // 판자를 붙들어 맨 쇠고리
+    ctx.fillStyle = '#4A4A52';
+    ctx.beginPath();
+    ctx.roundRect(px - postW * 0.32, y - fs * 0.16, postW * 1.64, fs * 0.3, fs * 0.09);
     ctx.fill();
     ctx.stroke();
   }

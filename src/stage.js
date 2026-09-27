@@ -8,6 +8,8 @@ import {
   STAGES,
   OBSTACLE_KINDS,
   OBSTACLE_CLUSTER,
+  CHAOS_FROM_STAGE,
+  CLUSTER_BOOST_PER_STAGE,
   BACON,
   BAGOOM,
   BAGOOM_CLUSTER,
@@ -59,8 +61,20 @@ function rhythmWeights(rand, n) {
   return w.map((_, i) => w[(i + shift) % n]);
 }
 
-function splitRandomly(rand, total, n) {
-  const weights = rhythmWeights(rand, n);
+// 진짜 무작위. 지수분포에서 뽑아 꼬리를 늘렸다 — 최소 간격에 붙은 구간과
+// 텅 빈 구간이 설계 없이 저절로 생긴다.
+//
+// 지수를 2.0으로 잡았다. 1.45는 고르게 퍼져 무작위 같지 않고, 2.6은 빈 구간이
+// 20초 넘게 늘어져 지루해진다.
+function chaosWeights(rand, n) {
+  return Array.from({ length: n }, () => {
+    const u = Math.max(1e-6, rand());
+    return Math.pow(-Math.log(u), 2.0) + 0.02;
+  });
+}
+
+function splitRandomly(rand, total, n, chaos) {
+  const weights = chaos ? chaosWeights(rand, n) : rhythmWeights(rand, n);
   const sum = weights.reduce((a, b) => a + b, 0);
   return weights.map((w) => (w / sum) * total);
 }
@@ -97,7 +111,7 @@ function buildCluster(rand, size, speed, theme) {
 // 장애물 count 개를 무리로 묶는다. 넘을 수 없는 무리는 크기를 줄여 다시 만든다.
 // 느린 스테이지에서는 체공 중 이동 거리가 짧아 큰 무리가 거의 다 퇴짜를 맞고,
 // 빠른 스테이지에서는 통과한다 — 무리 크기가 난이도를 따라 저절로 커진다.
-function makeGroups(rand, count, speed) {
+function makeGroups(rand, count, speed, boost = 1) {
   const groups = [];
   let left = count;
   let theme = null;
@@ -113,9 +127,11 @@ function makeGroups(rand, count, speed) {
     themeLeft--;
 
     const r = rand();
+    const triple = Math.min(0.3, OBSTACLE_CLUSTER.tripleChance * boost);
+    const pair = Math.min(0.5, OBSTACLE_CLUSTER.pairChance * boost);
     let want = 1;
-    if (left >= 3 && r < OBSTACLE_CLUSTER.tripleChance) want = 3;
-    else if (left >= 2 && r < OBSTACLE_CLUSTER.tripleChance + OBSTACLE_CLUSTER.pairChance) want = 2;
+    if (left >= 3 && r < triple) want = 3;
+    else if (left >= 2 && r < triple + pair) want = 2;
 
     let g = null;
     for (let size = want; size >= 1 && !g; size--) g = buildCluster(rand, size, speed, theme);
@@ -133,7 +149,7 @@ function makeGroups(rand, count, speed) {
  *   그래서 바굼 수만큼의 틈에 필요한 여유를 먼저 떼어 놓고, 남은 여유로만
  *   리듬을 만든다. 넓은 틈은 스테이지 전체에 고르게 흩어 놓는다.
  */
-function placeGroups(rand, groups, usableStart, usableLength, minGap, wide) {
+function placeGroups(rand, groups, usableStart, usableLength, minGap, wide, chaos) {
   const sumWidths = groups.reduce((a, g) => a + g.w, 0);
   const minSpan = sumWidths + (groups.length - 1) * minGap;
   const slack = usableLength - minSpan;
@@ -156,7 +172,7 @@ function placeGroups(rand, groups, usableStart, usableLength, minGap, wide) {
     reservedTotal = reserved.reduce((a, b) => a + b, 0);
   }
 
-  const rhythm = splitRandomly(rand, slack - reservedTotal, gaps);
+  const rhythm = splitRandomly(rand, slack - reservedTotal, gaps, chaos);
 
   const placed = [];
   const obstacles = [];
@@ -360,7 +376,9 @@ function attemptStage(stageNo, cfg, mixedSeed, seed) {
   const usableStart = START_CLEAR;
   const usableEnd = cfg.length - END_CLEAR;
 
-  const groups = makeGroups(rand, cfg.obstacles, cfg.speed);
+  const chaos = stageNo >= CHAOS_FROM_STAGE;
+  const boost = 1 + Math.max(0, stageNo - CHAOS_FROM_STAGE + 1) * CLUSTER_BOOST_PER_STAGE;
+  const groups = makeGroups(rand, cfg.obstacles, cfg.speed, chaos ? boost : 1);
 
   // 바굼 한 무리가 서려면 이만큼의 틈이 필요하다
   const widest = clusters ? BAGOOM.w * 3 + BAGOOM_CLUSTER.gap * 2 : BAGOOM.w;
@@ -369,7 +387,7 @@ function attemptStage(stageNo, cfg, mixedSeed, seed) {
   const wide = { count: lawnCount, extra: Math.max(0, clearance * 2 + widest - minGap) };
 
   const { obstacles, placed } = placeGroups(
-    rand, groups, usableStart, usableEnd - usableStart, minGap, wide,
+    rand, groups, usableStart, usableEnd - usableStart, minGap, wide, chaos,
   );
 
   // 일부는 낮은 장애물 위에서 시작한다. 나머지는 잔디밭에.
