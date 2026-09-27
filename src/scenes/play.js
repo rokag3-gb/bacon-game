@@ -174,22 +174,41 @@ function nearbyObstacles() {
 
 function checkBagooms() {
   const bb = baconBox(bacon);
+
+  // 판정은 프레임 시작 시점의 낙하 속도로 한다.
+  //
+  // 밟는 순간 bacon.vy 가 위로 튀는데, 그 값으로 다음 바굼을 판정하면
+  // 상승 중이라 "밟기"가 아니라 "옆구리 충돌"이 된다. 바굼 두세 마리가
+  // 붙어 있을 때 첫 마리를 밟자마자 옆 마리에 죽던 원인이다.
+  const vy = bacon.vy;
+  let stomped = false;
+  let touched = false;
+
   for (const [i] of stage.bagooms.entries()) {
     if (defeated.has(i)) continue;
     const box = bagoomBox(bagooms, i);
     if (Math.abs(box.x - bacon.x) > 300) continue;
-    const hit = classifyBagoomHit(bb, box, bacon.vy);
+
+    const hit = classifyBagoomHit(bb, box, vy);
     if (hit === 'stomp') {
+      stomped = true;
       defeated.add(i);
-      bacon.vy = -jumpV0() * 0.55;
-      bacon.onGround = false;
       sfx.stomp();
       spawnDust(dust, box.x + BAGOOM.w / 2, box.y + BAGOOM.h * 0.8, 0.5);
     } else if (hit === 'hit') {
-      return hurt();
+      touched = true;
     }
   }
-  return false;
+
+  if (stomped) {
+    // 한 번에 여러 마리를 밟았어도 튀어오르는 건 한 번.
+    // 밟은 프레임에는 옆구리 판정을 무시한다 — 붙어 있는 옆 마리에
+    // 스쳤다고 죽는 건 억울하다.
+    bacon.vy = -jumpV0() * 0.55;
+    bacon.onGround = false;
+    return false;
+  }
+  return touched ? hurt() : false;
 }
 
 // 목숨 하나를 잃되 자리는 그대로 두는 경우. 바굼에 스쳤을 때가 이것이다.

@@ -294,18 +294,26 @@ test('스테이지가 올라갈수록 반응할 시간이 짧아진다', () => {
   }
 });
 
-// 빈도가 한계에 닿아 있다는 사실 자체를 못박아 둔다. 더 올리려다 배치 생성이
-// 조용히 실패하거나 바굼이 밀려나는 일을 막기 위함이다.
-test('장애물 빈도가 물리적 한계를 넘지 않는다', () => {
-  const avgWidth = 52.4;
+// 장애물을 한계까지 채우면 나눠 쓸 여유가 사라져 모든 틈이 최소 간격에 딱
+// 붙는다 — 배치가 균일해져 오히려 예측 가능해진다. 평균 간격이 바닥의 1.25배는
+// 되어야 리듬을 만들 여지가 남는다.
+//
+// (장애물 개수로 한계를 재던 예전 방식은 무리를 고려하지 못했다. 2~3개가 한
+//  간격을 나눠 쓰므로 장애물 수는 간격 수보다 많을 수 있다.)
+test('배치에 리듬을 만들 여유가 남아 있다', () => {
   for (const n of stageNos) {
-    const s = buildStage(n, 777);
-    const minGap = airDistance(s.speed) * OBSTACLE_GAP_FACTOR;
-    const usable = s.length - START_CLEAR - END_CLEAR;
-    const limit = (usable + minGap) / (avgWidth + minGap);
+    const minGap = airDistance(STAGES[n - 1].speed) * OBSTACLE_GAP_FACTOR;
+    const gaps = [];
+    for (const seed of SEEDS) {
+      const s = buildStage(n, seed);
+      for (let i = 1; i < s.groups.length; i++) {
+        gaps.push(s.groups[i].x - (s.groups[i - 1].x + s.groups[i - 1].w));
+      }
+    }
+    const mean = gaps.reduce((a, b) => a + b, 0) / gaps.length;
     assert.ok(
-      s.obstacles.length <= limit,
-      `스테이지 ${n}: ${s.obstacles.length}개는 한계 ${limit.toFixed(0)}개를 넘는다`,
+      mean >= minGap * 1.25,
+      `스테이지 ${n}: 평균 간격이 바닥의 ${(mean / minGap).toFixed(2)}배 뿐 — 벽처럼 빽빽하다`,
     );
   }
 });

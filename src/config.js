@@ -76,10 +76,10 @@ export const OBSTACLE_KINDS = [
 // n log n 을 따라간 모양이다 (+26, +30, +35, +41).
 export const STAGES = [
   { speed: 300, length: 21000, obstacles: 30, bagooms: 7  },
-  { speed: 326, length: 26000, obstacles: 39, bagooms: 11 },
-  { speed: 356, length: 31500, obstacles: 56, bagooms: 16 },
-  { speed: 391, length: 37000, obstacles: 66, bagooms: 21 },
-  { speed: 432, length: 42000, obstacles: 74, bagooms: 26 },
+  { speed: 326, length: 26000, obstacles: 55, bagooms: 11 },
+  { speed: 356, length: 31500, obstacles: 63, bagooms: 16 },
+  { speed: 391, length: 37000, obstacles: 75, bagooms: 21 },
+  { speed: 432, length: 42000, obstacles: 85, bagooms: 26 },
 ];
 
 // 장애물 수는 바굼을 지키면서 넣을 수 있는 한계까지 올린 값이다.
@@ -109,10 +109,10 @@ export const END_CLEAR = 800;         // 팩맨 앞 비워두는 구간
 export const OBSTACLE_GAP_FACTOR = 1.2;
 export const BAGOOM_GAP_FACTOR = 0.8;    // 바굼과 장애물 사이 최소 간격
 
-// 스테이지 3부터는 간격을 설계하지 않는다. 지수분포로 뽑아 진짜 무작위로
+// 스테이지 2부터는 간격을 설계하지 않는다. 지수분포로 뽑아 진짜 무작위로
 // 흩뿌린다 — 포아송 과정이라 뭉치와 빈 구간이 저절로 생긴다. 1~2 스테이지는
 // 아이가 익히는 구간이라 설계된 리듬을 그대로 쓴다.
-export const CHAOS_FROM_STAGE = 3;
+export const CHAOS_FROM_STAGE = 2;
 
 // 뒤 스테이지일수록 장애물이 더 자주 붙어 무리를 이룬다
 export const CLUSTER_BOOST_PER_STAGE = 0.35;
@@ -124,8 +124,10 @@ export const CLUSTER_BOOST_PER_STAGE = 0.35;
 // 빠른 스테이지에서는 커진다 — 난이도 곡선과 방향이 맞는다.
 export const OBSTACLE_CLUSTER = {
   gap: 6,            // 무리 안에서 장애물끼리 벌어지는 정도
-  pairChance: 0.24,
-  tripleChance: 0.10,
+  // 2개가 붙어 나오는 건 한 번에 넘으면 그만이라 별로 안 어렵다. 확 줄이고
+  // 대신 불규칙한 간격으로 여러 개가 흩어져 나오게 한다.
+  pairChance: 0.08,
+  tripleChance: 0.09,
   margin: 25,        // 넘을 수 있는지 볼 때 남겨두는 여유
   shortBias: 0.75,   // 무리를 지을 때 낮은 장애물을 고를 확률
 };

@@ -19,9 +19,8 @@ export const stageIntro = {
   enter(arg) {
     t = 0;
     restarted = !!arg?.restarted;
-    // 스테이지에 들어갈 때마다 목숨은 3개로 복구된다. 별 등급이 남은 목숨으로
-    // 매겨지므로 스테이지마다 같은 조건에서 시작해야 한다.
-    state.lives = MAX_LIVES;
+    // 목숨은 스테이지를 넘어가도 이어진다. 다 잃고 되돌아왔을 때만 채워준다.
+    if (restarted) state.lives = MAX_LIVES;
     stopBgm();
   },
 

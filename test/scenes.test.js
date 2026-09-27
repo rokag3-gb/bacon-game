@@ -83,11 +83,29 @@ test('스테이지 시작 화면이 두 경우 모두 그려진다', () => {
   }
 });
 
-test('스테이지에 들어갈 때마다 목숨이 3개로 복구된다', () => {
+// 목숨은 스테이지를 넘어가도 이어진다. 스테이지마다 채워주면 뒤로 갈수록
+// 쉬워지고, 별 등급도 의미가 없어진다.
+test('목숨은 다음 스테이지로 그대로 이어진다', () => {
   boot();
   resetGame();
   state.lives = 1;
+  state.stageNo = 3;
   game.go('stageIntro');
+  assert.equal(state.lives, 1, '스테이지 시작에서 목숨이 채워졌다');
+});
+
+test('목숨을 다 잃고 되돌아왔을 때만 채워준다', () => {
+  boot();
+  resetGame();
+  state.lives = 0;
+  game.go('stageIntro', { restarted: true });
+  assert.equal(state.lives, MAX_LIVES);
+});
+
+test('새 판을 시작하면 목숨이 3개다', () => {
+  boot();
+  state.lives = 1;
+  resetGame();
   assert.equal(state.lives, MAX_LIVES);
 });
 
