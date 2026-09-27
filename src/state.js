@@ -13,7 +13,7 @@ export const state = {
 };
 
 export function resetGame() {
-  state.stageNo = START_STAGE;   // 임시로 3부터 (config.js 의 START_STAGE)
+  state.stageNo = START_STAGE;
   state.lives = MAX_LIVES;
   state.totalScore = 0;
   state.results = [];
