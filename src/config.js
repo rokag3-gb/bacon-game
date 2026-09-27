@@ -78,11 +78,11 @@ export const OBSTACLE_KINDS = [
 // 속도는 일정하게 오르지 않는다. 증가폭 자체가 커지는 J 커브 —
 // n log n 을 따라간 모양이다 (+26, +30, +35, +41).
 export const STAGES = [
-  { speed: 300, length: 16800, obstacles: 24, bagooms: 6  },
-  { speed: 326, length: 20800, obstacles: 49, bagooms: 9  },
-  { speed: 356, length: 31500, obstacles: 73, bagooms: 16 },
-  { speed: 391, length: 37000, obstacles: 86, bagooms: 21 },
-  { speed: 432, length: 42000, obstacles: 96, bagooms: 26 },
+  { speed: 330, length: 16800, obstacles: 24, bagooms: 6  },
+  { speed: 359, length: 20800, obstacles: 34, bagooms: 9  },
+  { speed: 392, length: 31500, obstacles: 55, bagooms: 16 },
+  { speed: 430, length: 37000, obstacles: 67, bagooms: 21 },
+  { speed: 475, length: 42000, obstacles: 75, bagooms: 26 },
 ];
 
 // 장애물 수는 바굼을 지키면서 넣을 수 있는 한계까지 올린 값이다.

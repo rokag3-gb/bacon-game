@@ -142,6 +142,73 @@ function makeGroups(rand, count, speed, boost = 1) {
   return groups;
 }
 
+// 진짜 무작위 흩뿌리기 (스테이지 2~5).
+//
+// 예전 방식은 "무리 개수를 먼저 정하고 최소 간격 이상 벌려 놓는" 것이었다.
+// 그러면 빽빽하게 채울수록 모든 틈이 바닥값에 붙어 메트로놈이 된다 —
+// 난수를 아무리 흔들어도 나눠 쓸 여유가 없다.
+//
+// 그래서 순서를 뒤집었다. 위치를 균등 난수로 그냥 흩뿌리고, 가까이 떨어진
+// 것들은 **떼어놓는 대신 붙여서 한 무리로** 만든다. 한 번에 넘을 수 있는
+// 크기를 넘어설 때만 끊는다. 간격을 벌릴 필요가 없으니 위치가 진짜 무작위가
+// 되고, 몰린 곳은 몰린 채로 남는다.
+function scatterGroups(rand, count, speed, lo, hi, minGap) {
+  // 밀어낸 만큼 전체가 뒤로 늘어나 끝을 넘치기 마련이다. 넘친 만큼 뽑는
+  // 범위를 좁혀 다시 뽑으면 몇 번 안에 맞아떨어진다.
+  let squeeze = 0;
+  for (let attempt = 0; attempt < 40; attempt++) {
+    const { groups, over } = scatterOnce(rand, count, speed, lo, hi - squeeze, hi, minGap);
+    if (groups) return groups;
+    squeeze = Math.min((hi - lo) * 0.75, squeeze + over + (hi - lo) * 0.01);
+  }
+  return null;
+}
+
+function scatterOnce(rand, count, speed, lo, drawHi, hi, minGap) {
+  // 1. 먼저 장애물을 "뭉치"로 나눈다. 낱개로 흩뿌리면 결국 전부 최소 간격만큼
+  //    떼어놓아야 해서 간격이 균일해진다. 뭉치로 묶으면 떼어놓을 자리가
+  //    확 줄어, 남는 공간이 전부 무작위한 큰 틈으로 간다.
+  const clumps = [];
+  let left = count;
+  while (left > 0) {
+    const want = Math.min(left, 1 + Math.floor(rand() * rand() * 4.4)); // 작은 쪽이 잦게
+    let parts = [];
+    let w = 0;
+    for (let i = 0; i < want; i++) {
+      const k = pick(rand, OBSTACLE_KINDS);
+      const dx = parts.length ? w + OBSTACLE_CLUSTER.gap : 0;
+      const trial = [...parts, { kind: k.kind, w: k.w, h: k.h, dx }];
+      const tw = dx + k.w;
+      if (parts.length && !clusterFits(trial, tw, speed)) break; // 한 번에 못 넘으면 그만
+      parts = trial;
+      w = tw;
+    }
+    clumps.push({ parts, w });
+    left -= parts.length;
+  }
+
+  // 2. 뭉치를 무작위 위치에 던진다
+  const xs = clumps.map(() => lo + rand() * (drawHi - lo)).sort((a, b) => a - b);
+
+  // 3. 겹치거나 너무 붙은 것만 밀어낸다. 밀 때마다 거리를 흔들어, 밀린 간격이
+  //    전부 똑같아지지 않게 한다. 한 번 밀면 그 뒤도 통째로 같이 민다.
+  const groups = [];
+  let shift = 0;
+  let prevEnd = -Infinity;
+  for (const [i, c] of clumps.entries()) {
+    let x = xs[i] + shift;
+    const need = prevEnd + minGap * (1 + rand() * rand() * 1.4);
+    if (prevEnd > -Infinity && x < need) {
+      shift += need - x;
+      x = need;
+    }
+    groups.push({ x, parts: c.parts, w: c.w });
+    prevEnd = x + c.w;
+  }
+
+  return prevEnd <= hi ? { groups } : { groups: null, over: prevEnd - hi };
+}
+
 // ─── 배치 ───────────────────────────────────────────────
 
 /**
@@ -378,8 +445,6 @@ function attemptStage(stageNo, cfg, mixedSeed, seed) {
   const usableEnd = cfg.length - END_CLEAR;
 
   const chaos = stageNo >= CHAOS_FROM_STAGE;
-  const boost = 1 + Math.max(0, stageNo - CHAOS_FROM_STAGE + 1) * CLUSTER_BOOST_PER_STAGE;
-  const groups = makeGroups(rand, cfg.obstacles, cfg.speed, chaos ? boost : 1);
 
   // 바굼 한 무리가 서려면 이만큼의 틈이 필요하다
   const widest = clusters ? BAGOOM.w * 3 + BAGOOM_CLUSTER.gap * 2 : BAGOOM.w;
@@ -387,9 +452,22 @@ function attemptStage(stageNo, cfg, mixedSeed, seed) {
     ? Math.round(cfg.bagooms * BAGOOM_PERCH.share) : 0);
   const wide = { count: lawnCount, extra: Math.max(0, clearance * 2 + widest - minGap) };
 
-  const { obstacles, placed } = placeGroups(
-    rand, groups, usableStart, usableEnd - usableStart, minGap, wide, chaos,
-  );
+  let obstacles;
+  let placed;
+  if (chaos) {
+    const scattered = scatterGroups(rand, cfg.obstacles, cfg.speed, usableStart, usableEnd, minGap);
+    if (!scattered) return { stageNo, seed, speed: cfg.speed, length: cfg.length, minGap, groups: [], obstacles: [], bagooms: [] };
+    placed = scattered.map((g) => ({ x: g.x, w: g.w, size: g.parts.length }));
+    obstacles = [];
+    for (const [i, g] of scattered.entries()) {
+      for (const p of g.parts) obstacles.push({ x: g.x + p.dx, kind: p.kind, w: p.w, h: p.h, group: i });
+    }
+  } else {
+    const groups = makeGroups(rand, cfg.obstacles, cfg.speed, 1);
+    ({ obstacles, placed } = placeGroups(
+      rand, groups, usableStart, usableEnd - usableStart, minGap, wide, false,
+    ));
+  }
 
   // 일부는 낮은 장애물 위에서 시작한다. 나머지는 잔디밭에.
   const wanderMul = 1 + (stageNo - 1) * BAGOOM_WANDER_PER_STAGE;
