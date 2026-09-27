@@ -2,13 +2,13 @@
 
 import { viewport, sy, su } from '../viewport.js';
 import { drawSky, drawGround } from '../scenery.js';
-import { drawPacman, drawBacon } from '../sprites.js';
+import { drawPacman, drawBacon, drawBagoom } from '../sprites.js';
 import { drawStars, drawCenterText, drawIcons, drawCredits, hitZone, ui } from '../ui.js';
 import { consumePress, setUiZones } from '../input.js';
 import { toggleMute, isMuted, playBgm, sfx } from '../audio.js';
 import { game } from '../game.js';
 import { state, totalStars } from '../state.js';
-import { BACON, STAGE_COUNT } from '../config.js';
+import { BACON, BAGOOM, STAGE_COUNT } from '../config.js';
 
 const FONT = 'system-ui, -apple-system, "Malgun Gothic", sans-serif';
 
@@ -48,10 +48,24 @@ export const ending = {
   render(ctx) {
     const s = viewport.scale;
     const bob = Math.sin(t * 3) * su(6);
+    const baconX = viewport.cssW * 0.34;
 
     drawSky(ctx, cameraX);
     drawPacman(ctx, viewport.cssW * 0.58, sy(-150) + bob, su(150), s, { chomp: t * 5 });
-    drawBacon(ctx, viewport.cssW * 0.34, sy(-BACON.h), s, { runPhase: t * 10 });
+
+    // 구경 나온 바굼 셋. 통통 뛰면서 눈으로 베이컨을 좇는다.
+    for (const [i, at] of [0.1, 0.22, 0.84].entries()) {
+      const bx = viewport.cssW * at;
+      const hop = Math.abs(Math.sin(t * 2.4 + i * 1.7)) * su(14);
+      const dx = baconX - bx;
+      const len = Math.max(su(80), Math.abs(dx));
+      drawBagoom(ctx, bx, sy(-BAGOOM.h) - hop, s, {
+        phase: t * 7 + i * 2,
+        look: { x: dx / len, y: 0.2 },
+      });
+    }
+
+    drawBacon(ctx, baconX, sy(-BACON.h), s, { runPhase: t * 10 });
     drawGround(ctx, cameraX);
 
     drawCenterText(ctx, '축하합니다!', `${STAGE_COUNT}개 스테이지를 모두 지났습니다`, 0.16);
